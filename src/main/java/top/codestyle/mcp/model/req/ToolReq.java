@@ -14,28 +14,23 @@
  * limitations under the License.
  */
 package top.codestyle.mcp.model.req;
-
-import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
+import org.springframework.ai.tool.annotation.ToolParam;
 
 import java.io.Serial;
 import java.io.Serializable;
 
 /**
- * 账号登录参数
+ * 工具请求
  *
- * @author artboy
- * @since 2022/12/21 20:43
+ * @author 文艺倾年
  */
 @Data
-public class AccountLoginReq implements Serializable {
+public class ToolReq implements Serializable {
 
     @Serial
     private static final long serialVersionUID = 1L;
 
-    /**
-     * 验证码标识
-     */
-    @Schema(description = "验证码标识", example = "090b9a2c-1691-4fca-99db-e4ed0cff362f")
-    private String uuid;
+    @ToolParam(description = "工具参数信息") // 暴露工具参数信息
+    private String ToolParamInfo;
 }

@@ -5,11 +5,6 @@ spring:
   ai:
     mcp:
       server:
-        stdio: true # 启用stdio模式
-        name: mcp-server # 服务器名称
+        name: mcp-codestyle-server # 服务器名称
         version: 0.0.1 # 服务器版本
-
-endpoint:
-  mianshiya:
-    searchQuestion: http://192.168.2.197:8013/api/question/search
-    resultLink: http://192.168.2.253:3000/question/%s
+        stdio: true # 启用stdio模式

@@ -2,6 +2,7 @@
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
+    <!--  Springboot版本。需要使用springboot3以上版本。  -->
     <parent>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
@@ -14,6 +15,7 @@
     <name>mcp-codestyle-server</name>
     <description>mcp-codestyle-server</description>
     <properties>
+        <!--  Java运行环境。要求JDK版本17+ -->
         <java.version>17</java.version>
     </properties>
     <dependencies>

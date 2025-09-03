@@ -1,6 +1,6 @@
 spring:
   application:
-    name: mcp-server
+    name: mcp-codestyle-server
   main:
     web-application-type: none
     banner-mode: off
