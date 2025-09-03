@@ -1,13 +1,7 @@
-#
-#server:
-#  port: 8090
+server:
+  port: 8090
 
 spring:
-  application:
-    name: mcp-server
-  main:
-    web-application-type: none # 必须禁用web应用类型
-    banner-mode: off # 禁用banner
   ai:
     mcp:
       server:
