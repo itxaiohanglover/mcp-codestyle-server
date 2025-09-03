@@ -1,0 +1,21 @@
+#
+#server:
+#  port: 8090
+
+spring:
+  application:
+    name: mcp-server
+  main:
+    web-application-type: none # 必须禁用web应用类型
+    banner-mode: off # 禁用banner
+  ai:
+    mcp:
+      server:
+        stdio: true # 启用stdio模式
+        name: mcp-server # 服务器名称
+        version: 0.0.1 # 服务器版本
+
+endpoint:
+  mianshiya:
+    searchQuestion: http://192.168.2.197:8013/api/question/search
+    resultLink: http://192.168.2.253:3000/question/%s
