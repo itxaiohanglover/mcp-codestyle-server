@@ -31,6 +31,9 @@ public class ToolReq implements Serializable {
     @Serial
     private static final long serialVersionUID = 1L;
 
+    /**
+     *
+     */
     @ToolParam(description = "工具参数信息") // 暴露工具参数信息
     private String ToolParamInfo;
 }
