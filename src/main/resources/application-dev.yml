@@ -8,3 +8,8 @@ spring:
         name: mcp-codestyle-server # 服务器名称
         version: 0.0.1 # 服务器版本
         stdio: true # 启用stdio模式
+
+endpoint:
+  mianshiya:
+    searchQuestion: https://api.mianshiya.com/api/question/mcp/search
+    resultLink: https://www.mianshiya.com/question/%s
