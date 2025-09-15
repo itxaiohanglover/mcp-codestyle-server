@@ -19,9 +19,4 @@ public class TemplateInfo {
     private String sha256; // SHA256值；722f185c48bed892d6fa12e2b8bf1e5f8200d4a70f522fb62b6caf13cb74e
     private Long storage_id; //存储ID
     private String content; // 内容
-    static class InputVariable {
-        private String variableName; // 变量名：packageName
-        private String variableType; // 变量类型：List、String...
-        private String variableComment; // 变量备注；
-    }
 }

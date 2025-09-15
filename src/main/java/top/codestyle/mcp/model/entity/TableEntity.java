@@ -30,36 +30,6 @@ public class TableEntity implements Serializable, Cloneable{
     //类名(第一个字母小写)，如：sys_user => sysUser
     private String classname;
 
-    public String getDbType() {
-        return DbType;
-    }
-
-    public void setDbType(String dbType) {
-        DbType = dbType;
-    }
-
-    public boolean isPk(String columnName) {
-        return this.getPkNames().contains(columnName);
-    }
-
-
-    public TableEntity setColumn(Column column) {
-        this.columns.put(column.getName(), column);
-        return this;
-    }
-
-    public Column getColumn(String name) {
-        return (Column)this.columns.get(name);
-    }
-
-    public Collection<Column> getColumns() {
-        return this.columns.values();
-    }
-
-    public TableEntity addPk(String pkColumnName) {
-        this.pkNames.add(pkColumnName);
-        return this;
-    }
     public Table clone() throws CloneNotSupportedException {
         return (Table)super.clone();
     }

@@ -1,7 +1,7 @@
 package top.codestyle.mcp.service;
 import cn.hutool.core.io.FileUtil;
-import top.codestyle.mcp.model.InputVariable;
-import top.codestyle.mcp.model.TemplateInfo;
+import top.codestyle.mcp.model.entity.InputVariable;
+import top.codestyle.mcp.model.entity.TemplateInfo;
 
 import java.util.ArrayList;
 import java.util.Arrays;
