@@ -20,3 +20,7 @@ cache:
   base-path: ${java.io.tmpdir}
   # 缓存目录配置
   cache-dir: ${cache.base-path}/codestyle-cache
+
+  lru:
+    max-size: 10000      # 内存 LRU 最大条目数
+    concurrency-level: 16

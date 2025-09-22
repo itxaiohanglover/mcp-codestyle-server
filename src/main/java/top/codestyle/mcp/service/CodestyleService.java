@@ -4,52 +4,36 @@ package top.codestyle.mcp.service;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.ai.tool.annotation.ToolParam;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import top.codestyle.mcp.model.entity.InputVariable;
 import top.codestyle.mcp.model.entity.TemplateInfo;
 import top.codestyle.mcp.model.entity.TreeNode;
+import top.codestyle.mcp.utils.CacheFileUtil;
 
 import java.util.*;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
 public class CodestyleService {
-
+    @Autowired
+    private CacheFileUtil cacheFileUtil;
     /**
      * 静态变量
      */
     public final static String PROMPT_TEMPLATE = """
-            #目录树：
-            ```
-            %s
-            ```
-            #变量说明：
-            ```
-            %s
-            ```
-            #详细模板：
-            %s
-            """.strip();
-
-//    public static String merge(List<TemplateInfo> templateInfos) {
-//        TreeNode treeNode;
-//        Map<String, String> vars;
-//        try {
-//
-//            treeNode = buildTree(templateInfos);
-//            vars = new LinkedHashMap<>();
-//            for (TemplateInfo n : templateInfos) {
-//                if (n.getInputVarivales() == null) continue;
-//                for (InputVariable v : n.getInputVarivales()) {
-//                    String desc = String.format("%s[%s]", v.getVariableComment(), v.getVariableType());
-//                    vars.putIfAbsent(v.getVariableName(), desc);
-//                }
-//            }
-//        } catch (Exception e) {
-//            throw new RuntimeException("变量提取失败", e);
-//        }
-//        return "#目录树：\n```\n" + buildTreeString(treeNode, "").trim() + "\n```\n#变量说明：\n```\n" + buildVarString(vars).trim();
-//    }
+ #目录树：
+ ```
+ %s
+ ```
+ #变量说明：
+ ```
+ %s
+ ```
+ #详细模板：
+ %s
+ """.strip();
 
     private static TreeNode buildTree(List<TemplateInfo> list) {
         TreeNode root = new TreeNode("");
@@ -123,4 +107,10 @@ public class CodestyleService {
         return PROMPT_TEMPLATE.formatted(rootTreeInfo, inputVariables, detailTemplates.toString());
     }
 
+    @Tool(name = "search-codestyle", description = "根据sha256检索本地缓存和文件服务器上对应文件")
+    public Map<String, Boolean> check(@ToolParam(description = "searchFile") List<TemplateInfo> nodes) {
+        return nodes.stream()
+                .collect(Collectors.toMap(TemplateInfo::getPath,
+                        n -> cacheFileUtil.ensureCached(n.getSha256())));
+    }
 }
