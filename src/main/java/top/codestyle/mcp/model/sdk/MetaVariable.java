@@ -7,8 +7,9 @@ import lombok.NoArgsConstructor;
 @Data
 @NoArgsConstructor
 @JsonIgnoreProperties(ignoreUnknown = true)   // ← 忽略 JSON 中不认识的全部字段
-public class InputVariable {
+public class MetaVariable {
     public String variableName;
     public String variableType;
     public String variableComment;
+    private String example;
 }

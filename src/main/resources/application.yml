@@ -19,4 +19,4 @@ repository:
   local-path: ${java.io.tmpdir} # 本地仓库地址
   remote-path: http://xxxxxxx  # 默认是公有服务器地址
   # 仓库目录配置
-  dir: ${cache.base-path}/codestyle-cache
+  dir: ${repository.local-path}/codestyle-cache

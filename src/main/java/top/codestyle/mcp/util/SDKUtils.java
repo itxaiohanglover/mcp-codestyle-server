@@ -1,7 +1,7 @@
 package top.codestyle.mcp.util;
 
-import top.codestyle.mcp.model.sdk.InputVariable;
-import top.codestyle.mcp.model.sdk.TemplateInfo;
+import top.codestyle.mcp.model.sdk.MetaVariable;
+import top.codestyle.mcp.model.sdk.MetaInfo;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -14,7 +14,7 @@ public class SDKUtils {
     /**
      * 根据模板文件信息，拉取模板内容
      */
-    public static TemplateInfo downloadFile(TemplateInfo req, String repositoryUrl) {
+    public static MetaInfo downloadFile(MetaInfo req, String repositoryUrl) {
         // 远程拉取文件
         return null;
     }
@@ -22,19 +22,19 @@ public class SDKUtils {
     /**
      * 根据任务检索到对应的模板信息
      */
-    public static List<TemplateInfo> search(String searchText) {
+    public static List<MetaInfo> search(String searchText) {
         // 远程拉取对应的模板信息
-        List<TemplateInfo> templateInfos = createExampleTemplateInfos();
-        return templateInfos;
+        List<MetaInfo> metaInfos = createExampleTemplateInfos();
+        return metaInfos;
     }
 
-    public static List<TemplateInfo> createExampleTemplateInfos() {
-        List<TemplateInfo> templateInfos = new ArrayList<>();
+    public static List<MetaInfo> createExampleTemplateInfos() {
+        List<MetaInfo> metaInfos = new ArrayList<>();
         String test1 = "controller";
-        templateInfos.add(createExampleTemplateInfo(test1,1L));
+        metaInfos.add(createExampleTemplateInfo(test1,1L));
         String test2 = "service";
-        templateInfos.add(createExampleTemplateInfo(test2,2L));
-        return templateInfos;
+        metaInfos.add(createExampleTemplateInfo(test2,2L));
+        return metaInfos;
     }
 
     /**
@@ -42,49 +42,49 @@ public class SDKUtils {
      *
      * @return 示例TemplateInfo对象
      */
-    public static TemplateInfo createExampleTemplateInfo(String name,Long id) {
-        TemplateInfo templateInfo = new TemplateInfo();
+    public static MetaInfo createExampleTemplateInfo(String name, Long id) {
+        MetaInfo metaInfo = new MetaInfo();
 
         // 设置基本字段
-        templateInfo.setId(id);
+        metaInfo.setId(id);
 
-        templateInfo.setGroupId("artboy");
-        templateInfo.setArtifactId("CRUD");
-        templateInfo.setVersion("v1.0.0");
+        metaInfo.setGroupId("artboy");
+        metaInfo.setArtifactId("CRUD");
+        metaInfo.setVersion("v1.0.0");
 
-        templateInfo.setFile_path("/src/main/java/com/air/" + name);
-        templateInfo.setPath("/src/main/java/com/air/controller/" + name + ".java.ftl");
-        templateInfo.setFilename(name + ".java.ftl");
-        templateInfo.setDescription("备注");
+        metaInfo.setFilePath("/src/main/java/com/air/" + name);
+        metaInfo.setPath("/src/main/java/com/air/controller/" + name + ".java.ftl");
+        metaInfo.setFilename(name + ".java.ftl");
+        metaInfo.setDescription("备注");
 
         // 设置inputVarivales列表
-        List<InputVariable> inputVariables = new ArrayList<>();
+        List<MetaVariable> metaVariables = new ArrayList<>();
         if(id == 1){
-            InputVariable packageNameVar = new InputVariable();
+            MetaVariable packageNameVar = new MetaVariable();
             packageNameVar.setVariableName("packageName");
             packageNameVar.setVariableType("String");
             packageNameVar.setVariableComment("项目根包名（如：com.air.order）"+name);
-            inputVariables.add(packageNameVar);
+            metaVariables.add(packageNameVar);
         }
 
         if (id == 2){
-            InputVariable classNamePrefixVar = new InputVariable();
+            MetaVariable classNamePrefixVar = new MetaVariable();
             classNamePrefixVar.setVariableName("classNamePrefix");
             classNamePrefixVar.setVariableType("String");
             classNamePrefixVar.setVariableComment("实体类命名前缀（驼峰式，如：Order）"+name);
-            inputVariables.add(classNamePrefixVar);
+            metaVariables.add(classNamePrefixVar);
         }
-        templateInfo.setInputVarivales(inputVariables);
+        metaInfo.setInputVarivales(metaVariables);
 
         // 设置其他字段
-        templateInfo.setSha256("d41d8cd98f00b204e9800998ecf8427e");
-        return templateInfo;
+        metaInfo.setSha256("d41d8cd98f00b204e9800998ecf8427e");
+        return metaInfo;
     }
 
     public static void main(String[] args)  {
-        List<TemplateInfo> templateInfos = search("Controller.java.ftl");
-        for (TemplateInfo templateInfo : templateInfos) {
-            System.out.println(templateInfo);
+        List<MetaInfo> metaInfos = search("Controller.java.ftl");
+        for (MetaInfo metaInfo : metaInfos) {
+            System.out.println(metaInfo);
         }
     }
 }

@@ -6,10 +6,9 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import top.codestyle.mcp.config.RepositoryConfig;
-import top.codestyle.mcp.model.meta.MetaItem;
-import top.codestyle.mcp.model.meta.MetaVariable;
-import top.codestyle.mcp.model.sdk.InputVariable;
-import top.codestyle.mcp.model.sdk.TemplateInfo;
+import top.codestyle.mcp.model.meta.LocalMetaInfo;
+import top.codestyle.mcp.model.sdk.MetaVariable;
+import top.codestyle.mcp.model.sdk.MetaInfo;
 import top.codestyle.mcp.util.SDKUtils;
 
 import java.io.IOException;
@@ -33,39 +32,38 @@ public class TemplateService {
     /**
      * 加载远程配置
      */
-    public List<TemplateInfo> search(String searchText) {
+    public List<MetaInfo> search(String searchText) {
         // 远程拉取文件
-        List<TemplateInfo> templateInfos = SDKUtils.search(searchText);
+        List<MetaInfo> metaInfos = SDKUtils.search(searchText);
         // 本地缓存
-        return templateInfos;
+        return metaInfos;
     }
 
     /**
      * 加载模板文件
      */
-    public List<TemplateInfo> loadTemplateFile(String searchText) {
+    public List<LocalMetaInfo> loadTemplateFile(List<MetaInfo> metaInfos) {
         // 本地拉取
-        List<TemplateInfo> templateInfos = new ArrayList<>();
-        templateInfos = loadTemplateFile(searchText);
-        // 本地未找到，远程拉取文件
-        templateInfos = SDKUtils.search(searchText);
+        List<LocalMetaInfo> localMetaInfos = new ArrayList<>();
+        // 比对本地元信息，取出不在本地的文件配置，然后远程拉取文件
+        // 填充LocalMetaInfo中的 templateContent 字段
         // 本地异步同步
-        return templateInfos;
+        return localMetaInfos;
     }
 
-    public List<TemplateInfo> loadFromLocalRepo(List<TemplateInfo> input) throws IOException {
+    public List<MetaInfo> loadFromLocalRepo(List<MetaInfo> input) throws IOException {
 
         String base = repositoryConfig.getLocalPath();
-        List<TemplateInfo> result = new ArrayList<>();
+        List<MetaInfo> result = new ArrayList<>();
 
-        for (TemplateInfo req : input) {          // 每个 req 只代表一个文件
+        for (MetaInfo req : input) {          // 每个 req 只代表一个文件
             Path repo = Paths.get(base, req.getGroupId(), req.getArtifactId());
             Path metaFile = repo.resolve("meta.json");
 
-            MetaItem meta = null;                 // 用来承载命中 meta 的那一行
+            LocalMetaInfo meta = null;                 // 用来承载命中 meta 的那一行
             if (Files.exists(metaFile)) {
-                List<MetaItem> items = objectMapper.readValue(metaFile.toFile(),
-                        new TypeReference<List<MetaItem>>() {});
+                List<LocalMetaInfo> items = objectMapper.readValue(metaFile.toFile(),
+                        new TypeReference<List<LocalMetaInfo>>() {});
                 // 按 filename 快速查找
                 meta = items.stream()
                         .filter(it -> it.getFilename().equalsIgnoreCase(req.getFilename()))
@@ -73,23 +71,23 @@ public class TemplateService {
                         .orElse(null);
             }
 
-            TemplateInfo out;
+            MetaInfo out;
             if (meta != null && Files.exists(repo.resolve(meta.getFilename()))) {
                 /* ===== 本地命中 ===== */
-                out = new TemplateInfo();
+                out = new MetaInfo();
                 out.setGroupId(req.getGroupId());
                 out.setArtifactId(req.getArtifactId());
                 out.setFilename(meta.getFilename());
-                out.setFile_path(meta.getFilePath());
+                out.setFilePath(meta.getFilePath());
                 out.setPath(meta.getFilePath() + "/" + meta.getFilename());
                 out.setVersion(meta.getVersion());
                 out.setDescription(meta.getDescription());
                 out.setSha256(meta.getSha256());
 
                 // 变量转换
-                List<InputVariable> vars = new ArrayList<>();
-                for (MetaVariable mv : meta.getInputVarivales()) {
-                    InputVariable v = new InputVariable();
+                List<MetaVariable> vars = new ArrayList<>();
+                for (top.codestyle.mcp.model.meta.LocalMetaVariable mv : meta.getInputVarivales()) {
+                    MetaVariable v = new MetaVariable();
                     v.variableName = mv.getVariableName().replace("变量名：", "").trim();
                     v.variableType = mv.getVariableType().replace("变量类型：", "").trim();
                     v.variableComment = mv.getVariableComment();

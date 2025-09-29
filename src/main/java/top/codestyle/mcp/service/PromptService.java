@@ -15,7 +15,7 @@ import java.nio.file.Paths;
  * 使用懒加载模式从文件中读取提示词模板
  */
 @Service
-public class PromptTemplateService {
+public class PromptService {
 
     private static final String PROMPT_TEMPLATE_PATH = "classpath:prompt.txt";
 
@@ -51,7 +51,7 @@ public class PromptTemplateService {
             return new String(Files.readAllBytes(Paths.get(resource.getURI())), StandardCharsets.UTF_8).strip();
         } catch (IOException e) {
             // 如果文件加载失败，使用默认模板作为备用
-            return "#目录树：\n```\n%s\n```\n#变量说明：\n```\n%s\n```\n#详细模板：\n%s";
+            return "";
         }
     }
 

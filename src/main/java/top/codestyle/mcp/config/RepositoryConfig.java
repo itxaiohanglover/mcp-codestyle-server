@@ -34,7 +34,7 @@ public class RepositoryConfig {
      * 仓库目录路径
      * 默认在基础路径下创建codestyle-cache目录
      */
-    @Value("${repository.dir:${cache.base-path}/codestyle-cache}")
+    @Value("${repository.dir:${repository.local-path}/codestyle-cache}")
     private String repositoryDir;
 
     /**
