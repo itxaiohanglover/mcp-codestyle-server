@@ -1,4 +1,4 @@
-package top.codestyle.mcp.model;
+package top.codestyle.mcp.model.tree;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import lombok.Data;

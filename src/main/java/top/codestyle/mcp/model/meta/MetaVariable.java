@@ -1,4 +1,4 @@
-package top.codestyle.mcp.model;
+package top.codestyle.mcp.model.meta;
 
 import lombok.Data;
 

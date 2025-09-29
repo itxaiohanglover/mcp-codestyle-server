@@ -14,7 +14,7 @@ public class SDKUtils {
     /**
      * 根据模板文件信息，拉取模板内容
      */
-    public static TemplateInfo downloadFile(TemplateInfo req) {
+    public static TemplateInfo downloadFile(TemplateInfo req, String repositoryUrl) {
         // 远程拉取文件
         return null;
     }

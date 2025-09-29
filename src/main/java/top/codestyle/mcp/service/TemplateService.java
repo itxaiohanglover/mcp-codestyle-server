@@ -6,8 +6,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import top.codestyle.mcp.config.RepositoryConfig;
-import top.codestyle.mcp.model.MetaItem;
-import top.codestyle.mcp.model.MetaVariable;
+import top.codestyle.mcp.model.meta.MetaItem;
+import top.codestyle.mcp.model.meta.MetaVariable;
 import top.codestyle.mcp.model.sdk.InputVariable;
 import top.codestyle.mcp.model.sdk.TemplateInfo;
 import top.codestyle.mcp.util.SDKUtils;
@@ -101,7 +101,7 @@ public class TemplateService {
                 out.setContent(Files.readString(repo.resolve(meta.getFilename()), StandardCharsets.UTF_8));
             } else {
                 /* ===== 本地未命中，去文件服务器拉取 ===== */
-                out = SDKUtils.downloadFile(req);
+                out = SDKUtils.downloadFile(req, repositoryConfig.getRemotePath());
                 if (out == null) continue;   // 拉取失败就跳过
             }
             result.add(out);

@@ -1,7 +1,7 @@
 package top.codestyle.mcp.util;
 
 import top.codestyle.mcp.model.sdk.TemplateInfo;
-import top.codestyle.mcp.model.TreeNode;
+import top.codestyle.mcp.model.tree.TreeNode;
 
 import java.util.HashMap;
 import java.util.List;

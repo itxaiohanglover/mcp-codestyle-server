@@ -5,9 +5,9 @@ import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.ai.tool.annotation.ToolParam;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
-import top.codestyle.mcp.model.*;
 import top.codestyle.mcp.model.sdk.InputVariable;
 import top.codestyle.mcp.model.sdk.TemplateInfo;
+import top.codestyle.mcp.model.tree.TreeNode;
 import top.codestyle.mcp.util.PromptUtils;
 import java.util.*;
 
