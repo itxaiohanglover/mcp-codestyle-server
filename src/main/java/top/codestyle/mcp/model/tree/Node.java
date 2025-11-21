@@ -7,14 +7,38 @@ import top.codestyle.mcp.model.sdk.MetaVariable;
 
 import java.util.List;
 
+/**
+ * 节点信息
+ *
+ * @author 小航love666, movclantian
+ * @since 2025-09-29
+ */
 @Data
 @NoArgsConstructor
-@JsonIgnoreProperties(ignoreUnknown = true)   // ← 忽略 JSON 中不认识的全部字段
-/* ---------- 1. JSON 节点结构 ---------- */
+@JsonIgnoreProperties(ignoreUnknown = true)
 public class Node {
+    /**
+     * 父节点路径
+     */
     public String parent_path;
+    
+    /**
+     * 当前节点路径
+     */
     public String path;
-    public int type;   // 0 目录，1 文件
+    
+    /**
+     * 节点类型: 0-目录, 1-文件
+     */
+    public int type;
+    
+    /**
+     * 节点名称
+     */
     public String name;
+    
+    /**
+     * 输入变量列表
+     */
     public List<MetaVariable> inputVarivales;
 }

@@ -7,19 +7,60 @@ import java.util.List;
 
 /**
  * 元信息
+ *
+ * @author 小航love666, Kanttha, movclantian
+ * @since 2025-09-29
  */
 @Data
 @NoArgsConstructor
 public class MetaInfo {
-    private Long id; // ID
-    private String groupId; //组织名: artboy
-    private String artifactId; //模板组：CRUD
-    private String description; // 备注：控制层
-    private String sha256; // SHA256值；722f185c48bed892d6fa12e2b8bf1e5f8200d4a70f522fb62b6caf13cb74e
-    private String version; //版本号: v1.0.0
-    private String filename; // 模板名称：Controller.java.ftl
-    private String filePath; // 模板目录；/src/main/java/com/air/controller
+    /**
+     * 模板ID
+     */
+    private Long id;
+    
+    /**
+     * 组织名(如: artboy)
+     */
+    private String groupId;
+    
+    /**
+     * 模板组名(如: CRUD)
+     */
+    private String artifactId;
+    
+    /**
+     * 模板描述(如: 控制层)
+     */
+    private String description;
+    
+    /**
+     * 文件SHA256哈希值
+     */
+    private String sha256;
+    
+    /**
+     * 版本号(如: 1.0.0)
+     */
+    private String version;
+    
+    /**
+     * 模板文件名(如: Controller.java.ftl)
+     */
+    private String filename;
+    
+    /**
+     * 模板文件所在目录路径(如: /src/main/java/com/air/controller)
+     */
+    private String filePath;
+    
+    /**
+     * 模板文件完整路径(如: /src/main/java/com/air/controller/Controller.java.ftl)
+     */
+    private String path;
 
-    private  String path; // 模板路径；/src/main/java/com/air/controller/Controller.java.ftl
-    private List<MetaVariable> metaVariables; // 模板变量说明；
+    /**
+     * 模板输入变量列表
+     */
+    private List<MetaVariable> inputVariables;
 }

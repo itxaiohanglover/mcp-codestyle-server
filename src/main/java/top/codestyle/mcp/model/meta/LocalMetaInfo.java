@@ -3,22 +3,18 @@ package top.codestyle.mcp.model.meta;
 import lombok.Data;
 import top.codestyle.mcp.model.sdk.MetaInfo;
 
-import java.util.List;
-
-
+/**
+ * 本地缓存的 Meta 信息结构
+ *
+ * @author 小航love666, Kanttha, movclantian
+ * @since 2025-09-29
+ */
 @Data
 public class LocalMetaInfo extends MetaInfo {
-//    private Long id; // ID
-//    private String version; //版本号: v1.0.0
-//    private String groupId; //组织名: artboy
-//    private String artifactId; //模板组：CRUD
-//    private String filePath;
-//    private String description;
-//    private String filename;
-//    private String sha256;
-//private List<LocalMetaVariable> localMetaVariables;
+
     /**
-     * 模板内容
+     * 模板文件内容
      */
     private String templateContent;
+
 }

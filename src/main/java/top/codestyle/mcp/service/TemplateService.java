@@ -1,14 +1,12 @@
 package top.codestyle.mcp.service;
 
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import top.codestyle.mcp.config.RepositoryConfig;
 import top.codestyle.mcp.model.meta.LocalMetaInfo;
 import top.codestyle.mcp.model.sdk.MetaInfo;
-import top.codestyle.mcp.model.sdk.MetaVariable;
+import top.codestyle.mcp.model.sdk.RemoteMetaConfig;
 import top.codestyle.mcp.util.MetaInfoConvertUtil;
 import top.codestyle.mcp.util.SDKUtils;
 
@@ -17,156 +15,191 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
+/**
+ * 模板服务
+ * 提供模板搜索、远程配置获取和智能下载功能
+ *
+ * @author 小航love666, Kanttha, movclantian
+ * @since 2025-09-29
+ */
 @Slf4j
 @Service
 public class TemplateService {
 
     @Autowired
-    private ObjectMapper objectMapper;
-
-    @Autowired
     private RepositoryConfig repositoryConfig;
 
     /**
-     * 加载远程配置
+     * 搜索模板
+     * 根据关键词在本地仓库中搜索匹配的模板
+     *
+     * @param searchText 搜索关键词
+     * @return 匹配的模板元信息列表
      */
     public List<MetaInfo> search(String searchText) {
-        // 远程拉取文件
-        List<MetaInfo> metaInfos = SDKUtils.search(searchText);
-        // 本地缓存
-        return metaInfos;
+        String localRepoPath = repositoryConfig.getRepositoryDir();
+
+        // 从本地仓库结构搜索
+        return SDKUtils.searchByKeyword(searchText, localRepoPath);
+    }
+
+    /**
+     * 根据精确路径搜索模板
+     * 本地未找到时尝试从远程下载
+     *
+     * @param exactPath 精确路径,格式: groupId/artifactId/version/filePath/filename
+     * @return 模板元信息,未找到返回null
+     * @throws IOException 文件读取异常
+     */
+    public LocalMetaInfo searchByPath(String exactPath) throws IOException {
+        String localRepoPath = repositoryConfig.getRepositoryDir();
+
+        // 1. 从本地仓库中查找模板
+        MetaInfo localResult = SDKUtils.searchByPath(exactPath, localRepoPath);
+        if (localResult != null) {
+            log.info("本地仓库命中: {}", exactPath);
+            LocalMetaInfo result = MetaInfoConvertUtil.convert(localResult);
+            result.setTemplateContent(readTemplateContent(localResult));
+            return result;
+        }
+
+        // 2. 本地未找到,尝试智能下载
+        try {
+            // 2.1 解析路径获取artifactId(格式: groupId/artifactId/version/filePath/filename)
+            String[] parts = exactPath.split("/");
+            if (parts.length >= 2) {
+                String artifactId = parts[1];
+
+                log.info("从路径解析出 artifactId={}, 尝试智能下载", artifactId);
+
+                // 2.2 获取远程配置
+                RemoteMetaConfig remoteConfig = fetchRemoteMetaConfig(artifactId);
+                if (remoteConfig == null) {
+                    log.warn("获取远程配置失败: {}", artifactId);
+                    return null;
+                }
+
+                // 2.3 触发智能下载
+                boolean downloadSuccess = smartDownloadTemplate(remoteConfig);
+
+                // 2.4 下载成功后重新搜索
+                if (downloadSuccess) {
+                    log.info("智能下载成功，重新搜索: {}", exactPath);
+                    localResult = SDKUtils.searchByPath(exactPath, localRepoPath);
+                    if (localResult != null) {
+                        log.info("修复后成功找到: {}", exactPath);
+                        LocalMetaInfo result = MetaInfoConvertUtil.convert(localResult);
+                        result.setTemplateContent(readTemplateContent(localResult));
+                        return result;
+                    }
+                }
+            }
+        } catch (Exception e) {
+            log.error("路径解析或智能下载失败: {}", e.getMessage(), e);
+        }
+
+        log.warn("本地仓库未找到且无法修复: {}", exactPath);
+        return null;
+    }
+
+    /**
+     * 智能下载或更新模板
+     * 根据SHA256哈希值判断是否需要更新
+     *
+     * @param remoteConfig 远程模板配置
+     * @return 是否成功
+     */
+    public boolean smartDownloadTemplate(RemoteMetaConfig remoteConfig) {
+        String localRepoPath = repositoryConfig.getRepositoryDir();
+        String remoteBaseUrl = repositoryConfig.getRemotePath();
+        return SDKUtils.smartDownloadTemplate(localRepoPath, remoteBaseUrl, remoteConfig);
+    }
+
+    /**
+     * 从远程仓库获取元配置
+     *
+     * @param templateKeyword 模板关键词
+     * @return 远程模板配置
+     */
+    public RemoteMetaConfig fetchRemoteMetaConfig(String templateKeyword) {
+        String remoteBaseUrl = repositoryConfig.getRemotePath();
+        return SDKUtils.fetchRemoteMetaConfig(remoteBaseUrl, templateKeyword);
     }
 
     /**
      * 加载模板文件
+     * 读取模板文件内容并填充到元信息中
+     *
+     * @param metaInfos 模板元信息
+     * @return 包含文件内容的本地元信息
      */
-    public List<LocalMetaInfo> loadTemplateFile(List<MetaInfo> metaInfos) {
-//        // 本地拉取
-//        List<LocalMetaInfo> localMetaInfos = new ArrayList<>();
-//        // 比对本地元信息，取出不在本地的文件配置，然后远程拉取文件
-//        try {
-//            List<MetaInfo> Infos = loadFromLocalRepo(metaInfos);
-//            for (MetaInfo Info: Infos) {
-//                LocalMetaInfo convert = MetaInfoConvertUtil.convert(Info);
-//                localMetaInfos.add(convert);
-//            }
-//        } catch (IOException e) {
-//            throw new RuntimeException(e);
-//        }
-//
-//        // 填充LocalMetaInfo中的 templateContent 字段
-//
-//
-//        // 本地异步同步
-//        return localMetaInfos;
-        // 1. 本地拉取
-        List<LocalMetaInfo> localMetaInfos = new ArrayList<>();
+    public LocalMetaInfo loadTemplateFile(MetaInfo metaInfos) {
         try {
-            List<MetaInfo> infos = loadFromLocalRepo(metaInfos);   // 名字已修正
-            for (MetaInfo info : infos) {
-                LocalMetaInfo convert = MetaInfoConvertUtil.convert(info);
-                // 2. 读取模板文件内容并填充
-                convert.setTemplateContent(readTemplateContent(info));
-                localMetaInfos.add(convert);
-            }
+            // 转换为LocalMetaInfo对象(复制元数据)
+            LocalMetaInfo localInfo = MetaInfoConvertUtil.convert(metaInfos);
+            
+            // 读取并填充模板文件内容(从本地缓存读取)
+            localInfo.setTemplateContent(readTemplateContent(metaInfos));
+            return localInfo;
         } catch (IOException e) {
-            throw new RuntimeException("加载模板文件失败", e);
+            log.error("读取模板文件失败: {}/{}/{}/{}/{}",
+                    metaInfos.getGroupId(), metaInfos.getArtifactId(), metaInfos.getVersion(),
+                    metaInfos.getFilePath(), metaInfos.getFilename(), e);
         }
-        return localMetaInfos;
+        return null;
     }
 
     /**
-     * 根据 MetaInfo 里记录的文件名（含路径）读取模板内容
+     * 读取模板文件内容
+     * 从本地缓存目录读取
+     *
+     * @param info 模板元信息
+     * @return 模板文件内容
+     * @throws IOException 文件不存在或读取失败
      */
     private String readTemplateContent(MetaInfo info) throws IOException {
-        // 拼装绝对路径：本地仓库根目录 + 相对路径 + 文件名
-        Path templatePath = Paths.get(repositoryConfig.getLocalPath(),info.getGroupId(),info.getArtifactId(),info.getFilename())
+        String localCachePath = repositoryConfig.getRepositoryDir();
+
+        // 拼装模板文件绝对路径(本地缓存根目录 + groupId + artifactId + version + filePath + filename)
+        Path templatePath = Paths.get(localCachePath,
+                info.getGroupId(),
+                info.getArtifactId(),
+                info.getVersion(),
+                info.getFilePath(),
+                info.getFilename())
                 .toAbsolutePath()
                 .normalize();
 
-
+        // 校验文件是否存在
         if (!Files.exists(templatePath)) {
             throw new IOException("模板文件不存在: " + templatePath);
         }
-        // 一次性读入，文件通常几十 KB 以内，性能足够
+        
+        // 读取文件内容(一次性读入,文件通常几十KB以内,性能足够)
         return Files.readString(templatePath, StandardCharsets.UTF_8);
     }
-    /* -------------------------------------------------
-     *  若需要异步填充（可选）
-     * ------------------------------------------------- */
+
+    /**
+     * 线程池,用于异步加载模板文件
+     */
     private final ExecutorService pool = Executors.newCachedThreadPool(r -> {
         Thread t = new Thread(r);
         t.setName("template-loader-" + t.getId());
         return t;
     });
 
-    public CompletableFuture<List<LocalMetaInfo>> loadTemplateFileAsync(List<MetaInfo> metaInfos) {
+    /**
+     * 异步加载模板文件
+     *
+     * @param metaInfos 模板元信息
+     * @return 异步Future对象
+     */
+    public CompletableFuture<LocalMetaInfo> loadTemplateFileAsync(MetaInfo metaInfos) {
         return CompletableFuture.supplyAsync(() -> loadTemplateFile(metaInfos), pool);
-    }
-
-
-
-
-    public List<MetaInfo> loadFromLocalRepo(List<MetaInfo> input) throws IOException {
-
-        String base = repositoryConfig.getLocalPath();
-        List<MetaInfo> result = new ArrayList<>();
-
-        for (MetaInfo req : input) {          // 每个 req 只代表一个文件
-            Path repo = Paths.get(base, req.getGroupId(), req.getArtifactId());
-            Path metaFile = repo.resolve("meta.json");
-
-            LocalMetaInfo meta = null;                 // 用来承载命中 meta 的那一行
-            if (Files.exists(metaFile)) {
-                List<LocalMetaInfo> items = objectMapper.readValue(metaFile.toFile(),
-                        new TypeReference<List<LocalMetaInfo>>() {
-                        });
-                // 按 filename 快速查找
-                meta = items.stream()
-                        .filter(it -> it.getFilename().equalsIgnoreCase(req.getFilename()))
-                        .findFirst()
-                        .orElse(null);
-            }
-
-            MetaInfo out;
-            if (meta != null && Files.exists(repo.resolve(meta.getFilename()))) {
-                /* ===== 本地命中 ===== */
-                out = new MetaInfo();
-                out.setGroupId(req.getGroupId());
-                out.setArtifactId(req.getArtifactId());
-                out.setFilename(meta.getFilename());
-                out.setFilePath(meta.getFilePath());
-                out.setPath(meta.getFilePath() + "/" + meta.getFilename());
-                out.setVersion(meta.getVersion());
-                out.setDescription(meta.getDescription());
-                out.setSha256(meta.getSha256());
-
-                // 变量转换
-                List<MetaVariable> vars = new ArrayList<>();
-                for (MetaVariable mv : meta.getMetaVariables()) {
-                    MetaVariable v = new MetaVariable();
-                    v.variableName = mv.getVariableName().replace("变量名：", "").trim();
-                    v.variableType = mv.getVariableType().replace("变量类型：", "").trim();
-                    v.variableComment = mv.getVariableComment();
-                    vars.add(v);
-                }
-                out.setMetaVariables(vars);
-                // 读内容
-//                out.setContent(Files.readString(repo.resolve(meta.getFilename()), StandardCharsets.UTF_8));
-            } else {
-                /* ===== 本地未命中，去文件服务器拉取 ===== */
-                out = SDKUtils.downloadFile(req, repositoryConfig.getRemotePath());
-                System.err.println("当前未命中情况下out内容"+out);
-                if (out == null) continue;   // 拉取失败就跳过
-            }
-            result.add(out);
-        }
-        return result;
     }
 }
