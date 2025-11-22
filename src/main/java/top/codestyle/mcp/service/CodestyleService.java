@@ -1,8 +1,9 @@
 package top.codestyle.mcp.service;
 
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.ai.tool.annotation.Tool;
-import org.springframework.ai.tool.annotation.ToolParam;
+
+import org.springaicommunity.mcp.annotation.McpTool;
+import org.springaicommunity.mcp.annotation.McpToolParam;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import top.codestyle.mcp.model.meta.LocalMetaInfo;
@@ -40,11 +41,11 @@ public class CodestyleService {
      * @param templateKeyword 模板提示词,如: CRUD, RuoYi, controller等
      * @return 模板目录树和描述信息
      */
-    @Tool(name = "codestyleSearch", description = """
+    @McpTool(name = "codestyleSearch", description = """
             根据模板提示词搜索代码模板库，返回匹配的模板目录树和模板组介绍。
             """)
     public String codestyleSearch(
-            @ToolParam(description = "模板提示词，如: CRUD, RuoYi, controller, service等") String templateKeyword) {
+            @McpToolParam(description = "模板提示词，如: CRUD, RuoYi, controller, service等") String templateKeyword) {
         log.info("codestyleSearch templateKeyword={}", templateKeyword);
 
         try {
@@ -93,9 +94,9 @@ public class CodestyleService {
      * @return 模板文件的详细信息(变量+内容)
      * @throws IOException 文件读取异常
      */
-    @Tool(name = "getTemplateByPath", description = "传入模板文件路径,获取模板文件的详细内容(包括变量说明和模板代码)")
+    @McpTool(name = "getTemplateByPath", description = "传入模板文件路径,获取模板文件的详细内容(包括变量说明和模板代码)")
     public String getTemplateByPath(
-            @ToolParam(description = "模板文件路径,如:backend/CRUD/1.0.0/src/main/java/com/air/controller/Controller.ftl") String templatePath)
+            @McpToolParam(description = "模板文件路径,如:backend/CRUD/1.0.0/src/main/java/com/air/controller/Controller.ftl") String templatePath)
             throws IOException {
         log.info("getTemplateByPath templatePath={}", templatePath);
 

@@ -1,9 +1,11 @@
 package top.codestyle.mcp.service;
 
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.modelcontextprotocol.client.McpClient;
 import io.modelcontextprotocol.client.transport.ServerParameters;
 import io.modelcontextprotocol.client.transport.StdioClientTransport;
+import io.modelcontextprotocol.json.jackson.JacksonMcpJsonMapper;
 import io.modelcontextprotocol.spec.McpSchema;
 
 import org.springframework.boot.test.context.SpringBootTest;
@@ -34,7 +36,8 @@ class CodestyleServiceTest {
                         Root_Path + "/target/mcp-codestyle-server-0.0.1.jar")
                 .build();
 
-        var transport = new StdioClientTransport(stdioParams);
+        var jsonMapper = new JacksonMcpJsonMapper(new ObjectMapper());
+        var transport = new StdioClientTransport(stdioParams, jsonMapper);
         var client = McpClient.sync(transport).build();
 
         client.initialize();

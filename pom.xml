@@ -35,8 +35,8 @@
         <!--                </dependency>-->
         <dependency>
             <groupId>org.springframework.ai</groupId>
-            <artifactId>spring-ai-mcp-server-spring-boot-starter</artifactId>
-            <version>1.0.0-M6</version>
+            <artifactId>spring-ai-starter-mcp-server</artifactId>
+            <version>1.1.0</version>
         </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>

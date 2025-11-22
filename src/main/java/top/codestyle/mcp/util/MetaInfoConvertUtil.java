@@ -54,8 +54,8 @@ public class MetaInfoConvertUtil {
     }
 
     /**
-     * 解析meta.json文件为模板元信息列表
-     *
+     * 解析meta.json文件为模板元信息列表(预留扩展)
+     * 
      * @param metaFile meta.json文件
      * @return 模板元信息列表
      * @throws IOException 文件读取异常
@@ -91,6 +91,54 @@ public class MetaInfoConvertUtil {
                         result.add(metaInfo);
                     }
                 }
+            }
+        }
+
+        return result;
+    }
+
+    /**
+     * 仅解析 meta.json 中“最新版本”为模板元信息列表
+     *
+     * @param metaFile meta.json 文件
+     * @return 仅包含最新版本文件的模板元信息列表
+     * @throws IOException 文件读取异常
+     */
+    public static List<MetaInfo> parseMetaJsonLatestOnly(File metaFile) throws IOException {
+        List<MetaInfo> result = new ArrayList<>();
+
+        LocalMetaConfig localConfig = new ObjectMapper().readValue(metaFile, LocalMetaConfig.class);
+
+        String groupId = localConfig.getGroupId();
+        String artifactId = localConfig.getArtifactId();
+
+        if (localConfig.getConfigs() == null || localConfig.getConfigs().isEmpty()) {
+            return result;
+        }
+
+        LocalMetaConfig.Config latest = localConfig.getConfigs().get(localConfig.getConfigs().size() - 1);
+        if (latest == null) {
+            return result;
+        }
+
+        String version = latest.getVersion();
+        if (latest.getFiles() != null) {
+            for (LocalMetaConfig.FileInfo fileInfo : latest.getFiles()) {
+                MetaInfo metaInfo = new MetaInfo();
+                metaInfo.setGroupId(groupId);
+                metaInfo.setArtifactId(artifactId);
+                metaInfo.setVersion(version);
+                metaInfo.setFilename(fileInfo.getFilename());
+                metaInfo.setFilePath(fileInfo.getFilePath());
+                metaInfo.setDescription(fileInfo.getDescription());
+                metaInfo.setSha256(fileInfo.getSha256());
+                metaInfo.setInputVariables(fileInfo.getInputVariables());
+
+                String fullPath = groupId + File.separator + artifactId + File.separator + version +
+                        fileInfo.getFilePath() + File.separator + fileInfo.getFilename();
+                metaInfo.setPath(fullPath);
+
+                result.add(metaInfo);
             }
         }
 

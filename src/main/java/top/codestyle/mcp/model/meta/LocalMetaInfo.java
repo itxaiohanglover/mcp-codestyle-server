@@ -1,6 +1,8 @@
 package top.codestyle.mcp.model.meta;
 
 import lombok.Data;
+import lombok.EqualsAndHashCode;
+import lombok.NoArgsConstructor;
 import top.codestyle.mcp.model.sdk.MetaInfo;
 
 /**
@@ -10,6 +12,8 @@ import top.codestyle.mcp.model.sdk.MetaInfo;
  * @since 2025-09-29
  */
 @Data
+@NoArgsConstructor
+@EqualsAndHashCode(callSuper=false)
 public class LocalMetaInfo extends MetaInfo {
 
     /**

@@ -63,7 +63,7 @@ public class SDKUtils {
      * 根据关键词搜索代码模板
      * 支持多关键词匹配、部分匹配、中英文混合、同义词匹配
      *
-     * @param searchText 搜索关键词,支持空格分隔的多关键词
+     * @param searchText       搜索关键词,支持空格分隔的多关键词
      * @param templateBasePath 模板基础路径
      * @return 匹配的模板元信息列表
      */
@@ -72,7 +72,7 @@ public class SDKUtils {
 
         try {
             // 规范化模板基础路径,统一使用系统分隔符
-            templateBasePath = templateBasePath.replace("/", File.separator).replace("\\", File.separator);
+            templateBasePath = normalizePath(templateBasePath);
             File templateDir = new File(templateBasePath);
             if (!templateDir.exists() || !templateDir.isDirectory()) {
                 return result;
@@ -84,9 +84,10 @@ public class SDKUtils {
             // 解析并过滤匹配的模板
             for (File metaFile : metaFiles) {
                 try {
-                        List<MetaInfo> metaInfoList = MetaInfoConvertUtil.parseMetaJson(metaFile);
+                    List<MetaInfo> metaInfoList = MetaInfoConvertUtil.parseMetaJsonLatestOnly(metaFile);
                     for (MetaInfo metaInfo : metaInfoList) {
-                        if (isMetaInfoMatched(searchText, metaInfo) && isTemplateFileExists(templateBasePath, metaInfo)) {
+                        if (isMetaInfoMatched(searchText, metaInfo)
+                                && isTemplateFileExists(templateBasePath, metaInfo)) {
                             result.add(metaInfo);
                         }
                     }
@@ -104,14 +105,16 @@ public class SDKUtils {
     /**
      * 根据精确路径搜索模板
      *
-     * @param exactPath 精确路径,格式: groupId/artifactId/version/filePath/filename
+     * @param exactPath        精确路径,格式: groupId/artifactId/version/filePath/filename
      * @param templateBasePath 模板基础路径
      * @return 匹配的模板元信息,未找到返回null
      */
     public static MetaInfo searchByPath(String exactPath, String templateBasePath) {
         try {
             // 规范化模板基础路径,统一使用系统分隔符
-            templateBasePath = templateBasePath.replace("/", File.separator).replace("\\", File.separator);
+            templateBasePath = normalizePath(templateBasePath);
+            // 统一exactPath分隔符
+            String normalizedExactPath = normalizePath(exactPath);
             File templateDir = new File(templateBasePath);
             if (!templateDir.exists() || !templateDir.isDirectory()) {
                 return null;
@@ -122,12 +125,15 @@ public class SDKUtils {
 
             // 在所有模板中查找匹配路径的文件
             for (File metaFile : metaFiles) {
-                 List<MetaInfo> metaInfoList = MetaInfoConvertUtil.parseMetaJson(metaFile);
+                List<MetaInfo> metaInfoList = MetaInfoConvertUtil.parseMetaJsonLatestOnly(metaFile);
                 for (MetaInfo metaInfo : metaInfoList) {
                     // 构建完整路径进行匹配(格式: groupId/artifactId/version/filePath/filename)
-                    String fullPath = metaInfo.getGroupId() + File.separator + metaInfo.getArtifactId() + File.separator +
+                    String fullPath = metaInfo.getGroupId() + File.separator + metaInfo.getArtifactId() + File.separator
+                            +
                             metaInfo.getVersion() + metaInfo.getFilePath() + File.separator + metaInfo.getFilename();
-                    if (fullPath.equals(exactPath)) {
+                    // 统一fullPath分隔符
+                    String normalizedFullPath = normalizePath(fullPath);
+                    if (normalizedFullPath.equals(normalizedExactPath)) {
                         return isTemplateFileExists(templateBasePath, metaInfo) ? metaInfo : null;
                     }
                 }
@@ -143,19 +149,21 @@ public class SDKUtils {
     /**
      * 发送HTTP GET请求
      *
-     * @param baseUrl 基础URL
-     * @param apiPath API路径
-     * @param paramName 参数名
-     * @param paramValue 参数值
+     * @param baseUrl     基础URL
+     * @param apiPath     API路径
+     * @param paramName   参数名
+     * @param paramValue  参数值
      * @param readTimeout 读取超时时间(毫秒)
      * @return HttpURLConnection对象,失败返回null
      */
-    private static HttpURLConnection sendGetRequest(String baseUrl, String apiPath, String paramName, String paramValue, int readTimeout) {
+    private static HttpURLConnection sendGetRequest(String baseUrl, String apiPath, String paramName, String paramValue,
+            int readTimeout) {
         try {
             // 构建完整的URL: baseUrl + apiPath + 查询参数
-            String fullUrl = baseUrl + apiPath + "?" + paramName + "=" + java.net.URLEncoder.encode(paramValue, StandardCharsets.UTF_8);
+            String fullUrl = baseUrl + apiPath + "?" + paramName + "="
+                    + java.net.URLEncoder.encode(paramValue, StandardCharsets.UTF_8);
             URL requestUrl = new URL(fullUrl);
-            
+
             // 配置并创建HTTP连接
             HttpURLConnection connection = (HttpURLConnection) requestUrl.openConnection();
             connection.setRequestMethod("GET");
@@ -172,13 +180,14 @@ public class SDKUtils {
     /**
      * 从远程仓库获取元配置
      *
-     * @param remoteBaseUrl 远程仓库基础URL
+     * @param remoteBaseUrl   远程仓库基础URL
      * @param templateKeyword 模板关键词,如: RuoYi, CRUD
      * @return 远程模板配置,失败返回null
      */
     public static RemoteMetaConfig fetchRemoteMetaConfig(String remoteBaseUrl, String templateKeyword) {
         try {
-            HttpURLConnection connection = sendGetRequest(remoteBaseUrl, "/api/mcp/search", "templateKeyword", templateKeyword, 30000);
+            HttpURLConnection connection = sendGetRequest(remoteBaseUrl, "/api/mcp/search", "templateKeyword",
+                    templateKeyword, 30000);
             if (connection == null) {
                 return null;
             }
@@ -203,7 +212,7 @@ public class SDKUtils {
      *
      * @param localRepoPath 本地仓库路径
      * @param remoteBaseUrl 远程仓库基础URL
-     * @param remoteConfig 远程模板配置
+     * @param remoteConfig  远程模板配置
      * @return 是否成功
      */
     public static boolean smartDownloadTemplate(String localRepoPath, String remoteBaseUrl,
@@ -273,7 +282,7 @@ public class SDKUtils {
      * 判断元信息是否匹配搜索关键词
      *
      * @param searchText 搜索关键词
-     * @param metaInfo 模板元信息
+     * @param metaInfo   模板元信息
      * @return 是否匹配
      */
     private static boolean isMetaInfoMatched(String searchText, MetaInfo metaInfo) {
@@ -333,11 +342,11 @@ public class SDKUtils {
      * 验证模板文件是否存在
      *
      * @param templateBasePath 模板基础路径
-     * @param metaInfo 模板元信息
+     * @param metaInfo         模板元信息
      * @return 文件是否存在
      */
     private static boolean isTemplateFileExists(String templateBasePath, MetaInfo metaInfo) {
-        String normalizedFilePath = metaInfo.getFilePath().replace("/", File.separator);
+        String normalizedFilePath = normalizePath(metaInfo.getFilePath());
         if (normalizedFilePath.startsWith(File.separator)) {
             normalizedFilePath = normalizedFilePath.substring(1);
         }
@@ -360,14 +369,14 @@ public class SDKUtils {
      * 检查是否需要更新模板
      *
      * @param localMetaFile 本地meta.json文件
-     * @param remoteConfig 远程配置
+     * @param remoteConfig  远程配置
      * @param localRepoPath 本地仓库路径
-     * @param groupId 组ID
-     * @param artifactId 项目ID
+     * @param groupId       组ID
+     * @param artifactId    项目ID
      * @return 是否需要更新
      */
     private static boolean checkIfNeedsUpdate(File localMetaFile, RemoteMetaConfig remoteConfig,
-                                               String localRepoPath, String groupId, String artifactId) {
+            String localRepoPath, String groupId, String artifactId) {
         try {
             ObjectMapper mapper = new ObjectMapper();
             LocalMetaConfig localConfig = mapper.readValue(localMetaFile, LocalMetaConfig.class);
@@ -388,7 +397,7 @@ public class SDKUtils {
      * 查找匹配的版本配置
      *
      * @param localConfig 本地配置
-     * @param version 版本号
+     * @param version     版本号
      * @return 匹配的配置,未找到返回null
      */
     private static LocalMetaConfig.Config findMatchedConfig(LocalMetaConfig localConfig, String version) {
@@ -405,15 +414,15 @@ public class SDKUtils {
     /**
      * 检查文件是否有变化
      *
-     * @param remoteConfig 远程配置
-     * @param localConfig 本地配置
+     * @param remoteConfig  远程配置
+     * @param localConfig   本地配置
      * @param localRepoPath 本地仓库路径
-     * @param groupId 组ID
-     * @param artifactId 项目ID
+     * @param groupId       组ID
+     * @param artifactId    项目ID
      * @return 是否有文件变化
      */
     private static boolean hasFileChanges(RemoteMetaConfig remoteConfig, LocalMetaConfig.Config localConfig,
-                                           String localRepoPath, String groupId, String artifactId) {
+            String localRepoPath, String groupId, String artifactId) {
         List<RemoteMetaConfig.FileInfo> remoteFiles = remoteConfig.getConfig().getFiles();
         List<LocalMetaConfig.FileInfo> localFiles = localConfig.getFiles();
         String version = remoteConfig.getConfig().getVersion();
@@ -428,7 +437,7 @@ public class SDKUtils {
             String remoteFilename = remoteFile.getFilename();
             String remoteFilePath = remoteFile.getFilePath();
 
-            String normalizedFilePath = remoteFilePath.replace("/", File.separator);
+            String normalizedFilePath = normalizePath(remoteFilePath);
             if (normalizedFilePath.startsWith(File.separator)) {
                 normalizedFilePath = normalizedFilePath.substring(1);
             }
@@ -452,13 +461,13 @@ public class SDKUtils {
      * 检查文件SHA256是否变化
      *
      * @param localFiles 本地文件列表
-     * @param filename 文件名
-     * @param filePath 文件路径
-     * @param remoteSha 远程SHA256
+     * @param filename   文件名
+     * @param filePath   文件路径
+     * @param remoteSha  远程SHA256
      * @return SHA是否变化
      */
     private static boolean isFileShaChanged(List<LocalMetaConfig.FileInfo> localFiles,
-                                             String filename, String filePath, String remoteSha) {
+            String filename, String filePath, String remoteSha) {
         if (localFiles == null) {
             return true;
         }
@@ -477,19 +486,20 @@ public class SDKUtils {
      *
      * @param localRepoPath 本地仓库路径
      * @param remoteBaseUrl 远程基础URL
-     * @param groupId 组ID
-     * @param artifactId 项目ID
-     * @param remoteConfig 远程配置
+     * @param groupId       组ID
+     * @param artifactId    项目ID
+     * @param remoteConfig  远程配置
      * @return 是否成功
      */
     private static boolean downloadAndExtractTemplate(String localRepoPath, String remoteBaseUrl,
-                                                       String groupId, String artifactId,
-                                                       RemoteMetaConfig remoteConfig) {
+            String groupId, String artifactId,
+            RemoteMetaConfig remoteConfig) {
         String templatePath = File.separator + groupId + File.separator + artifactId;
         File zipFile = null;
-        
+
         try {
-            HttpURLConnection connection = sendGetRequest(remoteBaseUrl, "/api/file/load", "paths", templatePath, 60000);
+            HttpURLConnection connection = sendGetRequest(remoteBaseUrl, "/api/file/load", "paths", templatePath,
+                    60000);
             if (connection == null || connection.getResponseCode() != 200) {
                 return false;
             }
@@ -498,7 +508,7 @@ public class SDKUtils {
             zipFile.deleteOnExit();
 
             try (InputStream inputStream = connection.getInputStream();
-                 FileOutputStream outputStream = new FileOutputStream(zipFile)) {
+                    FileOutputStream outputStream = new FileOutputStream(zipFile)) {
                 byte[] buffer = new byte[8192];
                 int bytesRead;
                 while ((bytesRead = inputStream.read(buffer)) != -1) {
@@ -523,7 +533,7 @@ public class SDKUtils {
     /**
      * 解压ZIP文件
      *
-     * @param zipFile ZIP文件
+     * @param zipFile    ZIP文件
      * @param targetPath 目标路径
      * @return 是否成功
      */
@@ -561,12 +571,12 @@ public class SDKUtils {
      * 更新本地meta.json文件
      *
      * @param localRepoPath 本地仓库路径
-     * @param groupId 组ID
-     * @param artifactId 项目ID
-     * @param remoteConfig 远程配置
+     * @param groupId       组ID
+     * @param artifactId    项目ID
+     * @param remoteConfig  远程配置
      */
     private static void updateLocalMetaJson(String localRepoPath, String groupId,
-                                             String artifactId, RemoteMetaConfig remoteConfig) throws IOException {
+            String artifactId, RemoteMetaConfig remoteConfig) throws IOException {
         String newVersion = remoteConfig.getConfig().getVersion();
         String localMetaPath = localRepoPath + File.separator + groupId + File.separator +
                 artifactId + File.separator + "meta.json";
@@ -597,5 +607,28 @@ public class SDKUtils {
 
         localMetaFile.getParentFile().mkdirs();
         mapper.writerWithDefaultPrettyPrinter().writeValue(localMetaFile, localConfig);
+    }
+
+    /**
+     * 规范化路径字符串
+     * 统一路径分隔符并移除连续分隔符,确保跨平台兼容性
+     *
+     * @param path 原始路径字符串
+     * @return 规范化后的路径字符串
+     */
+    private static String normalizePath(String path) {
+        if (path == null || path.isEmpty()) {
+            return path;
+        }
+
+        // 统一使用系统分隔符
+        String normalizedPath = path.replace('/', File.separatorChar).replace('\\', File.separatorChar);
+
+        // 移除连续的分隔符
+        while (normalizedPath.contains(File.separator + File.separator)) {
+            normalizedPath = normalizedPath.replace(File.separator + File.separator, File.separator);
+        }
+
+        return normalizedPath;
     }
 }

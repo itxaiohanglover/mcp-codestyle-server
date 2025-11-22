@@ -1,6 +1,9 @@
 package top.codestyle.mcp.model.meta;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+
 import lombok.Data;
+import lombok.NoArgsConstructor;
 
 /**
  * 本地缓存的元变量结构
@@ -9,6 +12,8 @@ import lombok.Data;
  * @since 2025-09-29
  */
 @Data
+@NoArgsConstructor
+@JsonIgnoreProperties(ignoreUnknown = true)
 public class LocalMetaVariable {
     /**
      * 变量名

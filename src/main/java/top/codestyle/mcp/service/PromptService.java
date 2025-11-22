@@ -8,6 +8,7 @@ import org.springframework.stereotype.Service;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Objects;
+import java.util.regex.Matcher;
 
 /**
  * 提示词模板加载服务
@@ -117,7 +118,9 @@ public class PromptService {
 
         String result = template;
         for (String p : params) {
-            result = result.replaceFirst("%\\{s}", p == null ? "" : p);
+            // 使用 Matcher.quoteReplacement 来转义特殊字符，避免 $ 和 \ 被当作正则表达式的反向引用
+            String replacement = Matcher.quoteReplacement(p == null ? "" : p);
+            result = result.replaceFirst("%\\{s}", replacement);
         }
         return result;
     }
