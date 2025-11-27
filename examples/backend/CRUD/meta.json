@@ -1,0 +1,577 @@
+{
+    "groupId": "backend",
+    "artifactId": "CRUD",
+    "configs": [
+        {
+            "version": "1.0.0",
+            "files": [
+                {
+                    "filePath": "/src/main/java/com/air/controller",
+                    "description": "控制层类模板 - 用于生成RESTful API Controller",
+                    "filename": "Controller.ftl",
+                    "inputVariables": [
+                        {
+                            "variableName": "packageName",
+                            "variableType": "String",
+                            "variableComment": "项目根包名",
+                            "example": "com.air.order"
+                        },
+                        {
+                            "variableName": "subPackageName",
+                            "variableType": "String",
+                            "variableComment": "子包名",
+                            "example": "controller"
+                        },
+                        {
+                            "variableName": "classNamePrefix",
+                            "variableType": "String",
+                            "variableComment": "实体类命名前缀（驼峰式）",
+                            "example": "Order"
+                        },
+                        {
+                            "variableName": "className",
+                            "variableType": "String",
+                            "variableComment": "控制器类名",
+                            "example": "OrderController"
+                        },
+                        {
+                            "variableName": "businessName",
+                            "variableType": "String",
+                            "variableComment": "业务名称（中文）",
+                            "example": "订单"
+                        },
+                        {
+                            "variableName": "apiModuleName",
+                            "variableType": "String",
+                            "variableComment": "API模块名",
+                            "example": "system"
+                        },
+                        {
+                            "variableName": "apiName",
+                            "variableType": "String",
+                            "variableComment": "API名称",
+                            "example": "order"
+                        },
+                        {
+                            "variableName": "author",
+                            "variableType": "String",
+                            "variableComment": "作者名称",
+                            "example": "张三"
+                        },
+                        {
+                            "variableName": "datetime",
+                            "variableType": "String",
+                            "variableComment": "创建日期时间",
+                            "example": "2024-01-01 10:00:00"
+                        }
+                    ],
+                    "sha256": "待计算"
+                },
+                {
+                    "filePath": "/src/main/java/com/air/service",
+                    "description": "Service接口模板 - 用于生成业务逻辑接口",
+                    "filename": "Service.ftl",
+                    "inputVariables": [
+                        {
+                            "variableName": "packageName",
+                            "variableType": "String",
+                            "variableComment": "项目根包名",
+                            "example": "com.air.order"
+                        },
+                        {
+                            "variableName": "subPackageName",
+                            "variableType": "String",
+                            "variableComment": "子包名",
+                            "example": "service"
+                        },
+                        {
+                            "variableName": "className",
+                            "variableType": "String",
+                            "variableComment": "Service接口名",
+                            "example": "OrderService"
+                        },
+                        {
+                            "variableName": "classNamePrefix",
+                            "variableType": "String",
+                            "variableComment": "实体类命名前缀（驼峰式）",
+                            "example": "Order"
+                        },
+                        {
+                            "variableName": "businessName",
+                            "variableType": "String",
+                            "variableComment": "业务名称（中文）",
+                            "example": "订单"
+                        },
+                        {
+                            "variableName": "author",
+                            "variableType": "String",
+                            "variableComment": "作者名称",
+                            "example": "张三"
+                        },
+                        {
+                            "variableName": "datetime",
+                            "variableType": "String",
+                            "variableComment": "创建日期时间",
+                            "example": "2024-01-01 10:00:00"
+                        }
+                    ],
+                    "sha256": "待计算"
+                },
+                {
+                    "filePath": "/src/main/java/com/air/service/impl",
+                    "description": "ServiceImpl实现类模板 - 用于生成业务逻辑实现类",
+                    "filename": "ServiceImpl.ftl",
+                    "inputVariables": [
+                        {
+                            "variableName": "packageName",
+                            "variableType": "String",
+                            "variableComment": "项目根包名",
+                            "example": "com.air.order"
+                        },
+                        {
+                            "variableName": "subPackageName",
+                            "variableType": "String",
+                            "variableComment": "子包名",
+                            "example": "service.impl"
+                        },
+                        {
+                            "variableName": "className",
+                            "variableType": "String",
+                            "variableComment": "ServiceImpl类名",
+                            "example": "OrderServiceImpl"
+                        },
+                        {
+                            "variableName": "classNamePrefix",
+                            "variableType": "String",
+                            "variableComment": "实体类命名前缀（驼峰式）",
+                            "example": "Order"
+                        },
+                        {
+                            "variableName": "businessName",
+                            "variableType": "String",
+                            "variableComment": "业务名称（中文）",
+                            "example": "订单"
+                        },
+                        {
+                            "variableName": "author",
+                            "variableType": "String",
+                            "variableComment": "作者名称",
+                            "example": "张三"
+                        },
+                        {
+                            "variableName": "datetime",
+                            "variableType": "String",
+                            "variableComment": "创建日期时间",
+                            "example": "2024-01-01 10:00:00"
+                        }
+                    ],
+                    "sha256": "待计算"
+                },
+                {
+                    "filePath": "/src/main/java/com/air/model/entity",
+                    "description": "实体类模板 - 用于生成数据库实体类",
+                    "filename": "Entity.ftl",
+                    "inputVariables": [
+                        {
+                            "variableName": "packageName",
+                            "variableType": "String",
+                            "variableComment": "项目根包名",
+                            "example": "com.air.order"
+                        },
+                        {
+                            "variableName": "subPackageName",
+                            "variableType": "String",
+                            "variableComment": "子包名",
+                            "example": "model.entity"
+                        },
+                        {
+                            "variableName": "className",
+                            "variableType": "String",
+                            "variableComment": "实体类名",
+                            "example": "OrderDO"
+                        },
+                        {
+                            "variableName": "tableName",
+                            "variableType": "String",
+                            "variableComment": "数据库表名",
+                            "example": "t_order"
+                        },
+                        {
+                            "variableName": "businessName",
+                            "variableType": "String",
+                            "variableComment": "业务名称（中文）",
+                            "example": "订单"
+                        },
+                        {
+                            "variableName": "hasTimeField",
+                            "variableType": "Boolean",
+                            "variableComment": "是否包含时间类型字段",
+                            "example": "true"
+                        },
+                        {
+                            "variableName": "hasBigDecimalField",
+                            "variableType": "Boolean",
+                            "variableComment": "是否包含BigDecimal类型字段",
+                            "example": "true"
+                        },
+                        {
+                            "variableName": "fieldConfigs",
+                            "variableType": "List<FieldConfig>",
+                            "variableComment": "字段配置列表",
+                            "example": "[{fieldName: 'orderNo', fieldType: 'String', comment: '订单编号'}]"
+                        },
+                        {
+                            "variableName": "author",
+                            "variableType": "String",
+                            "variableComment": "作者名称",
+                            "example": "张三"
+                        },
+                        {
+                            "variableName": "datetime",
+                            "variableType": "String",
+                            "variableComment": "创建日期时间",
+                            "example": "2024-01-01 10:00:00"
+                        }
+                    ],
+                    "sha256": "待计算"
+                },
+                {
+                    "filePath": "/src/main/java/com/air/mapper",
+                    "description": "Mapper接口模板 - 用于生成MyBatis Mapper接口",
+                    "filename": "Mapper.ftl",
+                    "inputVariables": [
+                        {
+                            "variableName": "packageName",
+                            "variableType": "String",
+                            "variableComment": "项目根包名",
+                            "example": "com.air.order"
+                        },
+                        {
+                            "variableName": "subPackageName",
+                            "variableType": "String",
+                            "variableComment": "子包名",
+                            "example": "mapper"
+                        },
+                        {
+                            "variableName": "className",
+                            "variableType": "String",
+                            "variableComment": "Mapper接口名",
+                            "example": "OrderMapper"
+                        },
+                        {
+                            "variableName": "classNamePrefix",
+                            "variableType": "String",
+                            "variableComment": "实体类命名前缀（驼峰式）",
+                            "example": "Order"
+                        },
+                        {
+                            "variableName": "businessName",
+                            "variableType": "String",
+                            "variableComment": "业务名称（中文）",
+                            "example": "订单"
+                        },
+                        {
+                            "variableName": "author",
+                            "variableType": "String",
+                            "variableComment": "作者名称",
+                            "example": "张三"
+                        },
+                        {
+                            "variableName": "datetime",
+                            "variableType": "String",
+                            "variableComment": "创建日期时间",
+                            "example": "2024-01-01 10:00:00"
+                        }
+                    ],
+                    "sha256": "待计算"
+                },
+                {
+                    "filePath": "/src/main/java/com/air/model/req",
+                    "description": "请求参数类模板 - 用于生成请求DTO",
+                    "filename": "Req.ftl",
+                    "inputVariables": [
+                        {
+                            "variableName": "packageName",
+                            "variableType": "String",
+                            "variableComment": "项目根包名",
+                            "example": "com.air.order"
+                        },
+                        {
+                            "variableName": "subPackageName",
+                            "variableType": "String",
+                            "variableComment": "子包名",
+                            "example": "model.req"
+                        },
+                        {
+                            "variableName": "className",
+                            "variableType": "String",
+                            "variableComment": "请求类名",
+                            "example": "OrderReq"
+                        },
+                        {
+                            "variableName": "businessName",
+                            "variableType": "String",
+                            "variableComment": "业务名称（中文）",
+                            "example": "订单"
+                        },
+                        {
+                            "variableName": "hasTimeField",
+                            "variableType": "Boolean",
+                            "variableComment": "是否包含时间类型字段",
+                            "example": "true"
+                        },
+                        {
+                            "variableName": "hasBigDecimalField",
+                            "variableType": "Boolean",
+                            "variableComment": "是否包含BigDecimal类型字段",
+                            "example": "true"
+                        },
+                        {
+                            "variableName": "hasRequiredField",
+                            "variableType": "Boolean",
+                            "variableComment": "是否包含必填字段",
+                            "example": "true"
+                        },
+                        {
+                            "variableName": "fieldConfigs",
+                            "variableType": "List<FieldConfig>",
+                            "variableComment": "字段配置列表",
+                            "example": "[{fieldName: 'orderNo', showInForm: true, isRequired: true}]"
+                        },
+                        {
+                            "variableName": "author",
+                            "variableType": "String",
+                            "variableComment": "作者名称",
+                            "example": "张三"
+                        },
+                        {
+                            "variableName": "datetime",
+                            "variableType": "String",
+                            "variableComment": "创建日期时间",
+                            "example": "2024-01-01 10:00:00"
+                        }
+                    ],
+                    "sha256": "待计算"
+                },
+                {
+                    "filePath": "/src/main/java/com/air/model/resp",
+                    "description": "响应类模板 - 用于生成列表响应DTO",
+                    "filename": "Resp.ftl",
+                    "inputVariables": [
+                        {
+                            "variableName": "packageName",
+                            "variableType": "String",
+                            "variableComment": "项目根包名",
+                            "example": "com.air.order"
+                        },
+                        {
+                            "variableName": "subPackageName",
+                            "variableType": "String",
+                            "variableComment": "子包名",
+                            "example": "model.resp"
+                        },
+                        {
+                            "variableName": "className",
+                            "variableType": "String",
+                            "variableComment": "响应类名",
+                            "example": "OrderResp"
+                        },
+                        {
+                            "variableName": "businessName",
+                            "variableType": "String",
+                            "variableComment": "业务名称（中文）",
+                            "example": "订单"
+                        },
+                        {
+                            "variableName": "hasTimeField",
+                            "variableType": "Boolean",
+                            "variableComment": "是否包含时间类型字段",
+                            "example": "true"
+                        },
+                        {
+                            "variableName": "hasBigDecimalField",
+                            "variableType": "Boolean",
+                            "variableComment": "是否包含BigDecimal类型字段",
+                            "example": "true"
+                        },
+                        {
+                            "variableName": "fieldConfigs",
+                            "variableType": "List<FieldConfig>",
+                            "variableComment": "字段配置列表",
+                            "example": "[{fieldName: 'orderNo', showInList: true}]"
+                        },
+                        {
+                            "variableName": "author",
+                            "variableType": "String",
+                            "variableComment": "作者名称",
+                            "example": "张三"
+                        },
+                        {
+                            "variableName": "datetime",
+                            "variableType": "String",
+                            "variableComment": "创建日期时间",
+                            "example": "2024-01-01 10:00:00"
+                        }
+                    ],
+                    "sha256": "待计算"
+                },
+                {
+                    "filePath": "/src/main/java/com/air/model/resp",
+                    "description": "详情响应类模板 - 用于生成详情响应DTO",
+                    "filename": "DetailResp.ftl",
+                    "inputVariables": [
+                        {
+                            "variableName": "packageName",
+                            "variableType": "String",
+                            "variableComment": "项目根包名",
+                            "example": "com.air.order"
+                        },
+                        {
+                            "variableName": "subPackageName",
+                            "variableType": "String",
+                            "variableComment": "子包名",
+                            "example": "model.resp"
+                        },
+                        {
+                            "variableName": "className",
+                            "variableType": "String",
+                            "variableComment": "详情响应类名",
+                            "example": "OrderDetailResp"
+                        },
+                        {
+                            "variableName": "businessName",
+                            "variableType": "String",
+                            "variableComment": "业务名称（中文）",
+                            "example": "订单"
+                        },
+                        {
+                            "variableName": "hasTimeField",
+                            "variableType": "Boolean",
+                            "variableComment": "是否包含时间类型字段",
+                            "example": "true"
+                        },
+                        {
+                            "variableName": "hasBigDecimalField",
+                            "variableType": "Boolean",
+                            "variableComment": "是否包含BigDecimal类型字段",
+                            "example": "false"
+                        },
+                        {
+                            "variableName": "fieldConfigs",
+                            "variableType": "List<FieldConfig>",
+                            "variableComment": "字段配置列表",
+                            "example": "[{fieldName: 'orderNo', comment: '订单编号'}]"
+                        },
+                        {
+                            "variableName": "author",
+                            "variableType": "String",
+                            "variableComment": "作者名称",
+                            "example": "张三"
+                        },
+                        {
+                            "variableName": "datetime",
+                            "variableType": "String",
+                            "variableComment": "创建日期时间",
+                            "example": "2024-01-01 10:00:00"
+                        }
+                    ],
+                    "sha256": "待计算"
+                },
+                {
+                    "filePath": "/src/main/java/com/air/model/query",
+                    "description": "查询条件类模板 - 用于生成查询条件DTO",
+                    "filename": "Query.ftl",
+                    "inputVariables": [
+                        {
+                            "variableName": "packageName",
+                            "variableType": "String",
+                            "variableComment": "项目根包名",
+                            "example": "com.air.order"
+                        },
+                        {
+                            "variableName": "subPackageName",
+                            "variableType": "String",
+                            "variableComment": "子包名",
+                            "example": "model.query"
+                        },
+                        {
+                            "variableName": "className",
+                            "variableType": "String",
+                            "variableComment": "查询类名",
+                            "example": "OrderQuery"
+                        },
+                        {
+                            "variableName": "businessName",
+                            "variableType": "String",
+                            "variableComment": "业务名称（中文）",
+                            "example": "订单"
+                        },
+                        {
+                            "variableName": "hasTimeField",
+                            "variableType": "Boolean",
+                            "variableComment": "是否包含时间类型字段",
+                            "example": "true"
+                        },
+                        {
+                            "variableName": "hasBigDecimalField",
+                            "variableType": "Boolean",
+                            "variableComment": "是否包含BigDecimal类型字段",
+                            "example": "false"
+                        },
+                        {
+                            "variableName": "fieldConfigs",
+                            "variableType": "List<FieldConfig>",
+                            "variableComment": "字段配置列表",
+                            "example": "[{fieldName: 'orderNo', showInQuery: true, queryType: 'LIKE'}]"
+                        },
+                        {
+                            "variableName": "author",
+                            "variableType": "String",
+                            "variableComment": "作者名称",
+                            "example": "张三"
+                        },
+                        {
+                            "variableName": "datetime",
+                            "variableType": "String",
+                            "variableComment": "创建日期时间",
+                            "example": "2024-01-01 10:00:00"
+                        }
+                    ],
+                    "sha256": "待计算"
+                },
+                {
+                    "filePath": "/sql",
+                    "description": "菜单SQL脚本模板 - 用于生成菜单初始化SQL",
+                    "filename": "Menu.ftl",
+                    "inputVariables": [
+                        {
+                            "variableName": "businessName",
+                            "variableType": "String",
+                            "variableComment": "业务名称（中文）",
+                            "example": "订单管理"
+                        },
+                        {
+                            "variableName": "apiModuleName",
+                            "variableType": "String",
+                            "variableComment": "API模块名",
+                            "example": "system"
+                        },
+                        {
+                            "variableName": "apiName",
+                            "variableType": "String",
+                            "variableComment": "API名称",
+                            "example": "order"
+                        },
+                        {
+                            "variableName": "classNamePrefix",
+                            "variableType": "String",
+                            "variableComment": "实体类命名前缀（驼峰式）",
+                            "example": "Order"
+                        }
+                    ],
+                    "sha256": "待计算"
+                }
+            ]
+        }
+    ]
+}
