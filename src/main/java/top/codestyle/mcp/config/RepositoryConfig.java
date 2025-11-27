@@ -3,6 +3,9 @@ package top.codestyle.mcp.config;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+
+import top.codestyle.mcp.util.SDKUtils;
+
 import java.io.File;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -72,7 +75,7 @@ public class RepositoryConfig {
     @Bean
     public Path repositoryDirectory() {
         try {
-            String normalizedRepoDir = normalizePath(getRepositoryDir());
+            String normalizedRepoDir = SDKUtils.normalizePath(getRepositoryDir());
             Path repoPath = Paths.get(normalizedRepoDir);
 
             if (!Files.exists(repoPath)) {
@@ -93,24 +96,4 @@ public class RepositoryConfig {
         }
     }
 
-    /**
-     * 规范化路径字符串
-     * 统一路径分隔符并移除连续分隔符,确保跨平台兼容性
-     *
-     * @param path 原始路径字符串
-     * @return 规范化后的路径字符串
-     */
-    private String normalizePath(String path) {
-        if (path == null || path.isEmpty()) {
-            return path;
-        }
-
-        String normalizedPath = path.replace('/', File.separatorChar).replace('\\', File.separatorChar);
-
-        while (normalizedPath.contains(File.separator + File.separator)) {
-            normalizedPath = normalizedPath.replace(File.separator + File.separator, File.separator);
-        }
-
-        return normalizedPath;
-    }
 }

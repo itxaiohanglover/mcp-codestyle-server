@@ -103,7 +103,7 @@ public class PromptService {
      * 从模板构建内容
      *
      * @param template 模板内容
-     * @param params 可变参数,依次对应模板中的%{s}
+     * @param params   可变参数,依次对应模板中的%{s}
      * @return 替换后的字符串
      * @throws IllegalArgumentException 参数数量与占位符数量不匹配
      */

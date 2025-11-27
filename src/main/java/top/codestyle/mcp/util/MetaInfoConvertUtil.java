@@ -1,5 +1,8 @@
 package top.codestyle.mcp.util;
 
+import cn.hutool.core.collection.CollUtil;
+import cn.hutool.core.io.FileUtil;
+import cn.hutool.json.JSONUtil;
 import top.codestyle.mcp.model.meta.LocalMetaInfo;
 import top.codestyle.mcp.model.meta.LocalMetaVariable;
 import top.codestyle.mcp.model.sdk.MetaInfo;
@@ -7,12 +10,10 @@ import top.codestyle.mcp.model.sdk.MetaVariable;
 import top.codestyle.mcp.model.meta.LocalMetaConfig;
 import top.codestyle.mcp.model.sdk.RemoteMetaConfig;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.stream.Collectors;
 
 /**
  * 元信息转换工具类
@@ -47,7 +48,7 @@ public class MetaInfoConvertUtil {
 
         // 复制变量列表
         List<MetaVariable> vars = source.getInputVariables();
-        if (vars != null && !vars.isEmpty()) {
+        if (CollUtil.isNotEmpty(vars)) {
             target.setInputVariables(vars);
         }
         return target;
@@ -63,7 +64,7 @@ public class MetaInfoConvertUtil {
     public static List<MetaInfo> parseMetaJson(File metaFile) throws IOException {
         List<MetaInfo> result = new ArrayList<>();
 
-        LocalMetaConfig localConfig = new ObjectMapper().readValue(metaFile, LocalMetaConfig.class);
+        LocalMetaConfig localConfig = JSONUtil.toBean(FileUtil.readUtf8String(metaFile), LocalMetaConfig.class);
 
         String groupId = localConfig.getGroupId();
         String artifactId = localConfig.getArtifactId();
@@ -107,12 +108,12 @@ public class MetaInfoConvertUtil {
     public static List<MetaInfo> parseMetaJsonLatestOnly(File metaFile) throws IOException {
         List<MetaInfo> result = new ArrayList<>();
 
-        LocalMetaConfig localConfig = new ObjectMapper().readValue(metaFile, LocalMetaConfig.class);
+        LocalMetaConfig localConfig = JSONUtil.toBean(FileUtil.readUtf8String(metaFile), LocalMetaConfig.class);
 
         String groupId = localConfig.getGroupId();
         String artifactId = localConfig.getArtifactId();
 
-        if (localConfig.getConfigs() == null || localConfig.getConfigs().isEmpty()) {
+        if (CollUtil.isEmpty(localConfig.getConfigs())) {
             return result;
         }
 

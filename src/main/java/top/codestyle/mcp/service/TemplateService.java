@@ -35,17 +35,15 @@ public class TemplateService {
     private RepositoryConfig repositoryConfig;
 
     /**
-     * 搜索模板
-     * 根据关键词在本地仓库中搜索匹配的模板
+     * 根据groupId和artifactId搜索指定模板组
      *
-     * @param searchText 搜索关键词
+     * @param groupId    组ID
+     * @param artifactId 项目ID
      * @return 匹配的模板元信息列表
      */
-    public List<MetaInfo> search(String searchText) {
+    public List<MetaInfo> searchLocalRepository(String groupId, String artifactId) {
         String localRepoPath = repositoryConfig.getRepositoryDir();
-
-        // 从本地仓库结构搜索
-        return SDKUtils.searchByKeyword(searchText, localRepoPath);
+        return SDKUtils.searchLocalRepository(groupId, artifactId, localRepoPath);
     }
 
     /**
@@ -59,7 +57,7 @@ public class TemplateService {
     public LocalMetaInfo searchByPath(String exactPath) throws IOException {
         String localRepoPath = repositoryConfig.getRepositoryDir();
 
-        // 1. 从本地仓库中查找模板
+        // 从本地仓库中查找模板
         MetaInfo localResult = SDKUtils.searchByPath(exactPath, localRepoPath);
         if (localResult != null) {
             log.info("本地仓库命中: {}", exactPath);
@@ -68,26 +66,26 @@ public class TemplateService {
             return result;
         }
 
-        // 2. 本地未找到,尝试智能下载
+        // 本地未找到,尝试智能下载
         try {
-            // 2.1 解析路径获取artifactId(格式: groupId/artifactId/version/filePath/filename)
+            // 解析路径获取artifactId(格式: groupId/artifactId/version/filePath/filename)
             String[] parts = exactPath.split("/");
             if (parts.length >= 2) {
                 String artifactId = parts[1];
 
                 log.info("从路径解析出 artifactId={}, 尝试智能下载", artifactId);
 
-                // 2.2 获取远程配置
+                // 获取远程配置
                 RemoteMetaConfig remoteConfig = fetchRemoteMetaConfig(artifactId);
                 if (remoteConfig == null) {
                     log.warn("获取远程配置失败: {}", artifactId);
                     return null;
                 }
 
-                // 2.3 触发智能下载
+                // 触发智能下载
                 boolean downloadSuccess = smartDownloadTemplate(remoteConfig);
 
-                // 2.4 下载成功后重新搜索
+                // 下载成功后重新搜索
                 if (downloadSuccess) {
                     log.info("智能下载成功，重新搜索: {}", exactPath);
                     localResult = SDKUtils.searchByPath(exactPath, localRepoPath);
@@ -142,7 +140,7 @@ public class TemplateService {
         try {
             // 转换为LocalMetaInfo对象(复制元数据)
             LocalMetaInfo localInfo = MetaInfoConvertUtil.convert(metaInfos);
-            
+
             // 读取并填充模板文件内容(从本地缓存读取)
             localInfo.setTemplateContent(readTemplateContent(metaInfos));
             return localInfo;
@@ -179,7 +177,7 @@ public class TemplateService {
         if (!Files.exists(templatePath)) {
             throw new IOException("模板文件不存在: " + templatePath);
         }
-        
+
         // 读取文件内容(一次性读入,文件通常几十KB以内,性能足够)
         return Files.readString(templatePath, StandardCharsets.UTF_8);
     }

@@ -33,7 +33,7 @@ public class PromptUtils {
         for (MetaInfo t : list) {
             // 构建完整路径(格式: groupId/artifactId/version/filePath)
             String fullPath = t.getGroupId() + "/" + t.getArtifactId() + "/" +
-                            t.getVersion() + t.getFilePath();
+                    t.getVersion() + t.getFilePath();
 
             // 确保完整路径目录链已存在
             mkdir(fullPath, cache);
@@ -53,19 +53,22 @@ public class PromptUtils {
     /**
      * 递归创建目录节点链
      *
-     * @param path 完整路径
+     * @param path  完整路径
      * @param cache 节点缓存（路径->节点映射）
      */
     private static void mkdir(String path, Map<String, TreeNode> cache) {
-        if (cache.containsKey(path)) return;
+        if (cache.containsKey(path))
+            return;
 
         String[] parts = path.split("/");
         StringBuilder sb = new StringBuilder();
         TreeNode parent = cache.get("");
 
         for (String p : parts) {
-            if (p.isEmpty()) continue;
-            if (sb.length() > 0) sb.append("/");
+            if (p.isEmpty())
+                continue;
+            if (sb.length() > 0)
+                sb.append("/");
             sb.append(p);
             String curPath = sb.toString();
             TreeNode node = cache.get(curPath);
@@ -81,7 +84,7 @@ public class PromptUtils {
     /**
      * 递归构建目录树的字符串表示
      *
-     * @param node 当前节点
+     * @param node   当前节点
      * @param indent 当前缩进
      * @return 格式化的目录树字符串
      */
@@ -129,7 +132,8 @@ public class PromptUtils {
         // 加载并构建模板变量列表
         Map<String, String> vars = new LinkedHashMap<>();
         for (MetaInfo n : loadTemplateFile) {
-            if (n.getInputVariables() == null) continue;
+            if (n.getInputVariables() == null)
+                continue;
             for (MetaVariable v : n.getInputVariables()) {
                 String desc = String.format("%s[%s]", v.getVariableComment(), v.getVariableType());
                 vars.putIfAbsent(v.getVariableName(), desc);

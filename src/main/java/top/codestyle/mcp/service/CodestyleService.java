@@ -30,7 +30,7 @@ public class CodestyleService {
 
     @Autowired
     private TemplateService templateService;
-    
+
     @Autowired
     private PromptService promptService;
 
@@ -45,7 +45,7 @@ public class CodestyleService {
             根据模板提示词搜索代码模板库，返回匹配的模板目录树和模板组介绍。
             """)
     public String codestyleSearch(
-            @McpToolParam(description = "模板提示词，如: CRUD, RuoYi, controller, service等") String templateKeyword) {
+            @McpToolParam(description = "模板提示词，如: CRUD, bankend, frontend等") String templateKeyword) {
         log.info("codestyleSearch templateKeyword={}", templateKeyword);
 
         try {
@@ -54,30 +54,30 @@ public class CodestyleService {
 
             if (remoteConfig == null) {
                 return String.format("""
-                        未找到模板 "%s" 或远程仓库不可访问。
+                        远程仓库不可访问,无法获取模板信息。
 
                         建议尝试以下模板提示词：
                         【后端】CRUD, controller, service, mapper, entity
                         【前端】CRUD, index, form, modal
-                        【通用】RuoYi, SpringBoot
+                        【通用】bankend, frontend
 
                         请检查模板提示词是否正确，或联系管理员
-                        """, templateKeyword);
+                        """);
             }
 
             // 同步检查并更新本地仓库(必须等待下载完成才能构建目录树)
             templateService.smartDownloadTemplate(remoteConfig);
 
-            // 从本地仓库搜索匹配的模板
-            String searchText = templateKeyword.toLowerCase();
-            List<MetaInfo> metaInfos = templateService.search(searchText);
+            // 从本地仓库搜索匹配的模板(限定在当前模板组范围内)
+            List<MetaInfo> metaInfos = templateService.searchLocalRepository(remoteConfig.getGroupId(),
+                    remoteConfig.getArtifactId());
 
             // 构建模板目录树结构
             TreeNode treeNode = PromptUtils.buildTree(metaInfos);
             String treeStr = PromptUtils.buildTreeStr(treeNode, "").trim();
 
             // 格式化并返回搜索结果
-            return promptService.buildSearchResult(treeStr, remoteConfig.getDescription());
+            return promptService.buildSearchResult(templateKeyword, treeStr, remoteConfig.getDescription());
 
         } catch (Exception e) {
             log.error("模板搜索失败: {}", e.getMessage(), e);
@@ -107,7 +107,7 @@ public class CodestyleService {
         if (matchedTemplate == null) {
             return String.format("未找到路径为 '%s' 的模板文件,请检查路径是否正确。", templatePath);
         }
-        
+
         // 构建变量信息
         Map<String, String> vars = new LinkedHashMap<>();
         if (matchedTemplate.getInputVariables() != null && !matchedTemplate.getInputVariables().isEmpty()) {
@@ -119,7 +119,7 @@ public class CodestyleService {
                 vars.put(variable.getVariableName(), desc);
             }
         }
-        
+
         // 使用PromptUtils格式化变量信息
         String varInfo = vars.isEmpty() ? "无变量" : PromptUtils.buildVarString(vars).trim();
 
