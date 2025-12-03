@@ -1,12 +1,12 @@
 {
-    "groupId": "backend",
+    "groupId": "continew",
     "artifactId": "CRUD",
     "configs": [
         {
             "version": "1.0.0",
             "files": [
                 {
-                    "filePath": "/src/main/java/com/air/controller",
+                    "filePath": "/backend/src/main/java/com/air/controller",
                     "description": "控制层类模板 - 用于生成RESTful API Controller",
                     "filename": "Controller.ftl",
                     "inputVariables": [
@@ -68,7 +68,7 @@
                     "sha256": "待计算"
                 },
                 {
-                    "filePath": "/src/main/java/com/air/service",
+                    "filePath": "/backend/src/main/java/com/air/service",
                     "description": "Service接口模板 - 用于生成业务逻辑接口",
                     "filename": "Service.ftl",
                     "inputVariables": [
@@ -118,7 +118,7 @@
                     "sha256": "待计算"
                 },
                 {
-                    "filePath": "/src/main/java/com/air/service/impl",
+                    "filePath": "/backend/src/main/java/com/air/service/impl",
                     "description": "ServiceImpl实现类模板 - 用于生成业务逻辑实现类",
                     "filename": "ServiceImpl.ftl",
                     "inputVariables": [
@@ -168,7 +168,7 @@
                     "sha256": "待计算"
                 },
                 {
-                    "filePath": "/src/main/java/com/air/model/entity",
+                    "filePath": "/backend/src/main/java/com/air/model/entity",
                     "description": "实体类模板 - 用于生成数据库实体类",
                     "filename": "Entity.ftl",
                     "inputVariables": [
@@ -236,7 +236,7 @@
                     "sha256": "待计算"
                 },
                 {
-                    "filePath": "/src/main/java/com/air/mapper",
+                    "filePath": "/backend/src/main/java/com/air/mapper",
                     "description": "Mapper接口模板 - 用于生成MyBatis Mapper接口",
                     "filename": "Mapper.ftl",
                     "inputVariables": [
@@ -286,7 +286,27 @@
                     "sha256": "待计算"
                 },
                 {
-                    "filePath": "/src/main/java/com/air/model/req",
+                    "filePath": "/backend/src/main/resources/mapper",
+                    "description": "Mapper XML模板 - 用于生成MyBatis Mapper XML文件",
+                    "filename": "MapperXml.ftl",
+                    "inputVariables": [
+                        {
+                            "variableName": "packageName",
+                            "variableType": "String",
+                            "variableComment": "项目根包名",
+                            "example": "com.air.order"
+                        },
+                        {
+                            "variableName": "classNamePrefix",
+                            "variableType": "String",
+                            "variableComment": "实体类命名前缀（驼峰式）",
+                            "example": "Order"
+                        }
+                    ],
+                    "sha256": "待计算"
+                },
+                {
+                    "filePath": "/backend/src/main/java/com/air/model/req",
                     "description": "请求参数类模板 - 用于生成请求DTO",
                     "filename": "Req.ftl",
                     "inputVariables": [
@@ -327,9 +347,9 @@
                             "example": "true"
                         },
                         {
-                            "variableName": "hasRequiredField",
+                            "variableName": "hasListField",
                             "variableType": "Boolean",
-                            "variableComment": "是否包含必填字段",
+                            "variableComment": "是否包含List类型字段",
                             "example": "true"
                         },
                         {
@@ -354,7 +374,7 @@
                     "sha256": "待计算"
                 },
                 {
-                    "filePath": "/src/main/java/com/air/model/resp",
+                    "filePath": "/backend/src/main/java/com/air/model/resp",
                     "description": "响应类模板 - 用于生成列表响应DTO",
                     "filename": "Resp.ftl",
                     "inputVariables": [
@@ -416,7 +436,7 @@
                     "sha256": "待计算"
                 },
                 {
-                    "filePath": "/src/main/java/com/air/model/resp",
+                    "filePath": "/backend/src/main/java/com/air/model/resp",
                     "description": "详情响应类模板 - 用于生成详情响应DTO",
                     "filename": "DetailResp.ftl",
                     "inputVariables": [
@@ -478,7 +498,7 @@
                     "sha256": "待计算"
                 },
                 {
-                    "filePath": "/src/main/java/com/air/model/query",
+                    "filePath": "/backend/src/main/java/com/air/model/query",
                     "description": "查询条件类模板 - 用于生成查询条件DTO",
                     "filename": "Query.ftl",
                     "inputVariables": [
@@ -540,7 +560,7 @@
                     "sha256": "待计算"
                 },
                 {
-                    "filePath": "/sql",
+                    "filePath": "/backend/sql",
                     "description": "菜单SQL脚本模板 - 用于生成菜单初始化SQL",
                     "filename": "Menu.ftl",
                     "inputVariables": [
@@ -561,12 +581,194 @@
                             "variableType": "String",
                             "variableComment": "API名称",
                             "example": "order"
+                        }
+                    ],
+                    "sha256": "待计算"
+                },
+                {
+                    "filePath": "/frontend/src/api",
+                    "description": "前端API接口模板 - 用于生成TypeScript API调用文件",
+                    "filename": "api.ftl",
+                    "inputVariables": [
+                        {
+                            "variableName": "apiModuleName",
+                            "variableType": "String",
+                            "variableComment": "API模块名",
+                            "example": "system"
+                        },
+                        {
+                            "variableName": "apiName",
+                            "variableType": "String",
+                            "variableComment": "API名称",
+                            "example": "order"
                         },
                         {
                             "variableName": "classNamePrefix",
                             "variableType": "String",
                             "variableComment": "实体类命名前缀（驼峰式）",
                             "example": "Order"
+                        },
+                        {
+                            "variableName": "businessName",
+                            "variableType": "String",
+                            "variableComment": "业务名称（中文）",
+                            "example": "订单"
+                        },
+                        {
+                            "variableName": "fieldConfigs",
+                            "variableType": "List<FieldConfig>",
+                            "variableComment": "字段配置列表",
+                            "example": "[{fieldName: 'orderNo', showInList: true, showInQuery: true}]"
+                        }
+                    ],
+                    "sha256": "待计算"
+                },
+                {
+                    "filePath": "/frontend/src/components",
+                    "description": "前端新增/编辑弹窗模板 - 用于生成Vue组件",
+                    "filename": "AddModal.ftl",
+                    "inputVariables": [
+                        {
+                            "variableName": "apiModuleName",
+                            "variableType": "String",
+                            "variableComment": "API模块名",
+                            "example": "system"
+                        },
+                        {
+                            "variableName": "apiName",
+                            "variableType": "String",
+                            "variableComment": "API名称",
+                            "example": "order"
+                        },
+                        {
+                            "variableName": "classNamePrefix",
+                            "variableType": "String",
+                            "variableComment": "实体类命名前缀（驼峰式）",
+                            "example": "Order"
+                        },
+                        {
+                            "variableName": "businessName",
+                            "variableType": "String",
+                            "variableComment": "业务名称（中文）",
+                            "example": "订单"
+                        },
+                        {
+                            "variableName": "hasDictField",
+                            "variableType": "Boolean",
+                            "variableComment": "是否包含字典字段",
+                            "example": "true"
+                        },
+                        {
+                            "variableName": "dictCodes",
+                            "variableType": "List<String>",
+                            "variableComment": "字典编码列表",
+                            "example": "['order_status', 'pay_type']"
+                        },
+                        {
+                            "variableName": "fieldConfigs",
+                            "variableType": "List<FieldConfig>",
+                            "variableComment": "字段配置列表",
+                            "example": "[{fieldName: 'orderNo', showInForm: true, formType: 'INPUT', comment: '订单编号'}]"
+                        }
+                    ],
+                    "sha256": "待计算"
+                },
+                {
+                    "filePath": "/frontend/src/components",
+                    "description": "前端详情抽屉模板 - 用于生成Vue详情展示组件",
+                    "filename": "DetailDrawer.ftl",
+                    "inputVariables": [
+                        {
+                            "variableName": "apiModuleName",
+                            "variableType": "String",
+                            "variableComment": "API模块名",
+                            "example": "system"
+                        },
+                        {
+                            "variableName": "apiName",
+                            "variableType": "String",
+                            "variableComment": "API名称",
+                            "example": "order"
+                        },
+                        {
+                            "variableName": "classNamePrefix",
+                            "variableType": "String",
+                            "variableComment": "实体类命名前缀（驼峰式）",
+                            "example": "Order"
+                        },
+                        {
+                            "variableName": "businessName",
+                            "variableType": "String",
+                            "variableComment": "业务名称（中文）",
+                            "example": "订单"
+                        },
+                        {
+                            "variableName": "hasDictField",
+                            "variableType": "Boolean",
+                            "variableComment": "是否包含字典字段",
+                            "example": "true"
+                        },
+                        {
+                            "variableName": "dictCodes",
+                            "variableType": "List<String>",
+                            "variableComment": "字典编码列表",
+                            "example": "['order_status', 'pay_type']"
+                        },
+                        {
+                            "variableName": "fieldConfigs",
+                            "variableType": "List<FieldConfig>",
+                            "variableComment": "字段配置列表",
+                            "example": "[{fieldName: 'orderNo', comment: '订单编号', dictCode: ''}]"
+                        }
+                    ],
+                    "sha256": "待计算"
+                },
+                {
+                    "filePath": "/frontend/src/views",
+                    "description": "前端列表页面模板 - 用于生成Vue列表页面",
+                    "filename": "index.ftl",
+                    "inputVariables": [
+                        {
+                            "variableName": "apiModuleName",
+                            "variableType": "String",
+                            "variableComment": "API模块名",
+                            "example": "system"
+                        },
+                        {
+                            "variableName": "apiName",
+                            "variableType": "String",
+                            "variableComment": "API名称",
+                            "example": "order"
+                        },
+                        {
+                            "variableName": "classNamePrefix",
+                            "variableType": "String",
+                            "variableComment": "实体类命名前缀（驼峰式）",
+                            "example": "Order"
+                        },
+                        {
+                            "variableName": "businessName",
+                            "variableType": "String",
+                            "variableComment": "业务名称（中文）",
+                            "example": "订单"
+                        },
+                        {
+                            "variableName": "hasDictField",
+                            "variableType": "Boolean",
+                            "variableComment": "是否包含字典字段",
+                            "example": "true"
+                        },
+                        {
+                            "variableName": "dictCodes",
+                            "variableType": "List<String>",
+                            "variableComment": "字典编码列表",
+                            "example": "['order_status', 'pay_type']"
+                        },
+                        {
+                            "variableName": "fieldConfigs",
+                            "variableType": "List<FieldConfig>",
+                            "variableComment": "字段配置列表",
+                            "example": "[{fieldName: 'orderNo', showInList: true, showInQuery: true, formType: 'INPUT', queryType: 'LIKE', comment: '订单编号', dictCode: ''}]"
                         }
                     ],
                     "sha256": "待计算"

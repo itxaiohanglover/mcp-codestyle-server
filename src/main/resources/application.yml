@@ -10,7 +10,7 @@ spring:
     mcp:
       server:
         name: mcp-codestyle-server # 服务器名称
-        version: 0.0.1 # 服务器版本
+        version: 1.0.0 # 服务器版本
         type: SYNC # 服务器类型: SYNC(同步) 或 ASYNC(异步)
         stdio: true # 启用stdio模式
         annotation-scanner:
@@ -23,3 +23,5 @@ repository:
   remote-path: http://localhost # 远程仓库地址
   # 仓库目录配置(可选,不配置则自动使用 local-path/codestyle-cache)
   dir: /var/cache/codestyle/codestyle-cache
+  # 是否启用远程检索(默认false,使用本地Lucene检索)
+  remote-search-enabled: false

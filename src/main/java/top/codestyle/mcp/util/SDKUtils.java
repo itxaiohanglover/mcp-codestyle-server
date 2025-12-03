@@ -323,6 +323,8 @@ public class SDKUtils {
             // 解压到仓库根目录
             if (extractZipFile(zipFile, localRepoPath, templateDir)) {
                 updateLocalMetaJson(localRepoPath, groupId, artifactId, remoteConfig, backupContent);
+                // 将远程的description写入README.md（缓存到本地）
+                saveDescriptionToReadme(templateDir, remoteConfig);
                 return true;
             }
             return false;
@@ -401,6 +403,28 @@ public class SDKUtils {
         configs.add(newConfig);
 
         FileUtil.writeUtf8String(JSONUtil.toJsonPrettyStr(localConfig), localMetaFile);
+    }
+
+    /**
+     * 将远程description保存到本地README.md
+     * 缓存路径: groupId/artifactId/version/README.md
+     *
+     * @param templateDir  模板目录 (groupId/artifactId)
+     * @param remoteConfig 远程配置
+     */
+    private static void saveDescriptionToReadme(String templateDir, RemoteMetaConfig remoteConfig) {
+        String description = remoteConfig.getDescription();
+        if (StrUtil.isBlank(description)) {
+            return;
+        }
+        
+        String version = remoteConfig.getConfig().getVersion();
+        String readmePath = templateDir + File.separator + version + File.separator + "README.md";
+        File readmeFile = new File(readmePath);
+        
+        // 确保版本目录存在
+        FileUtil.mkdir(readmeFile.getParentFile());
+        FileUtil.writeUtf8String(description, readmeFile);
     }
 
     /**

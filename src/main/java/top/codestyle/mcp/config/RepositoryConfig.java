@@ -42,6 +42,13 @@ public class RepositoryConfig {
     private String repositoryDir;
 
     /**
+     * 是否启用远程检索
+     * 默认false,使用本地Lucene检索
+     */
+    @Value("${repository.remote-search-enabled:false}")
+    private boolean remoteSearchEnabled;
+
+    /**
      * 获取本地基础路径
      */
     public String getLocalPath() {
@@ -64,6 +71,13 @@ public class RepositoryConfig {
             return localPath + File.separator + "codestyle-cache";
         }
         return repositoryDir;
+    }
+
+    /**
+     * 是否启用远程检索
+     */
+    public boolean isRemoteSearchEnabled() {
+        return remoteSearchEnabled;
     }
 
     /**

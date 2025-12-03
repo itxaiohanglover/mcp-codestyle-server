@@ -12,7 +12,7 @@
     </parent>
     <groupId>top.codestyle.mcp</groupId>
     <artifactId>mcp-codestyle-server</artifactId>
-    <version>0.0.1</version>
+    <version>1.0.2</version>
     <name>mcp-codestyle-server</name>
     <description>mcp-codestyle-server</description>
     <properties>
@@ -26,13 +26,21 @@
             <artifactId>spring-boot-starter-test</artifactId>
             <scope>test</scope>
         </dependency>
-        <!--mcp服务器核心依赖—
-        响应式-->
-        <!--                <dependency>-->
-        <!--                    <groupId>org.springframework.ai</groupId>-->
-        <!--                    <artifactId>spring-ai-mcp-server-webflux-spring-boot-starter</artifactId>-->
-        <!--                    <version>1.0.0-M6</version>-->
-        <!--                </dependency>-->
+        <dependency>
+            <groupId>org.apache.lucene</groupId>
+            <artifactId>lucene-core</artifactId>
+            <version>9.12.3</version>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.lucene</groupId>
+            <artifactId>lucene-queryparser</artifactId>
+            <version>9.12.3</version>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.lucene</groupId>
+            <artifactId>lucene-analysis-smartcn</artifactId>
+            <version>9.12.3</version>
+        </dependency>
         <dependency>
             <groupId>org.springframework.ai</groupId>
             <artifactId>spring-ai-starter-mcp-server</artifactId>
@@ -45,7 +53,7 @@
         <dependency>
             <groupId>cn.hutool</groupId>
             <artifactId>hutool-all</artifactId>
-            <version>5.8.25</version>
+            <version>5.8.42</version>
         </dependency>
         <dependency>
             <groupId>com.fasterxml.jackson.core</groupId>

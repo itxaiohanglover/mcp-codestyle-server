@@ -1,9 +1,12 @@
-# MCP 代码模板服务器
+# 代码模板服务器 - Codestyle Server MCP
 
-MCP Codestyle Server 是一个基于 Spring AI 实现的 Model Context Protocol (MCP) 服务器，为 IDE 和 AI 代理提供代码模板搜索和检索工具。该服务从本地缓存查找模板，并在缺失时自动从远程仓库下载元数据和文件进行修复。
+Codestyle Server MCP 是一个基于 Spring AI 实现的 Model Context Protocol (MCP) 服务器，为 IDE 和 AI 代理提供代码模板搜索和检索工具。该服务从本地缓存查找模板，并在缺失时自动从远程仓库下载元数据和文件进行修复。
 
 ## 核心特性
+
 - **原生 MCP 工具**：`CodestyleService` 通过 `spring-ai-starter-mcp-server` 注册 `codestyleSearch` 和 `getTemplateByPath` 工具，STDIO 客户端（Cherry Studio、Cursor 等）可直接调用
+- **Lucene 本地全文检索**：集成 Apache Lucene ，支持中文分词（SmartChineseAnalyzer），离线环境下也能高效检索模板
+- **双模式检索**：支持本地 Lucene 检索（默认）和远程 API 检索两种模式，通过配置一键切换
 - **增量更新机制**：通过 SHA256 哈希值比对判断模板是否需要更新，避免重复下载
 - **自修复模板缓存**：本地未找到模板时自动触发远程下载，支持按需获取
 - **精确路径定位**：从请求路径解析 `groupId/artifactId`，直接定位 `meta.json`
@@ -11,54 +14,62 @@ MCP Codestyle Server 是一个基于 Spring AI 实现的 Model Context Protocol 
 - **多版本共存**：采用 `groupId/artifactId/version/` Maven 风格目录结构，支持同一模板的多版本管理
 
 ## 技术栈
+
 - Java 17, Maven 3.9+
 - Spring Boot 3.2.5
 - Spring AI MCP Server 1.1.0
-- Hutool 5.8.25（HTTP、文件、JSON、ZIP 工具）
+- Apache Lucene 9.12.3（本地全文检索引擎，支持中文分词）
+- Hutool 5.8.42（HTTP、文件、JSON、ZIP 工具）
 
 ## 架构设计
 
 ### 分层架构
+
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                    MCP 客户端 (Cursor/Cherry Studio)         │
-└─────────────────────────────────────────────────────────────┘
-                              │ STDIO
-                              ▼
-┌─────────────────────────────────────────────────────────────┐
-│  CodestyleService (@McpTool)                                │
-│  ├── codestyleSearch(keyword)     → 目录树 + 模板组介绍        │
-│  └── getTemplateByPath(path)      → 变量说明 + 模板内容        │
-└─────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────┐
-│  TemplateService (业务编排层)                                 │
-│  ├── searchLocalRepository()      → 本地仓库搜索              │
-│  ├── searchByPath()               → 精确路径搜索 + 自动修复     │
-│  ├── fetchRemoteMetaConfig()      → 获取远程配置              │
-│  └── smartDownloadTemplate()      → 智能下载                 │
-└─────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────┐
-│  SDKUtils (核心工具层)                                        │
-│  ├── searchLocalRepository()      → 按 groupId/artifactId 搜索│
-│  ├── searchByPath()               → 精确路径匹配              │
-│  ├── fetchRemoteMetaConfig()      → HTTP 请求远程 API         │
-│  ├── smartDownloadTemplate()      → SHA256 比对 + 增量下载    │
-│  ├── checkIfNeedsUpdate()         → 版本/文件/哈希 检查        │
-│  └── downloadAndExtractTemplate() → ZIP 下载解压 + meta 合并  │
-└─────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────┐
-│  本地缓存 (codestyle-cache/)                                 │
-│  └── {groupId}/{artifactId}/meta.json + {version}/...       │
-└─────────────────────────────────────────────────────────────┘
+┌───────────────────────────────────────────────────────────────────┐
+│                    MCP 客户端 (Cursor/Cherry Studio)               │
+└───────────────────────────────────────────────────────────────────┘
+                                    │
+                                    │ STDIO
+                                    ▼
+┌───────────────────────────────────────────────────────────────────┐
+│  CodestyleService (@McpTool)                                      │
+│  ├── codestyleSearch(keyword)         → 目录树 + 模板组介绍        │
+│  └── getTemplateByPath(path)          → 变量说明 + 模板内容        │
+└───────────────────────────────────────────────────────────────────┘
+                                    │
+                    ┌───────────────┴───────────────┐
+                    │                               │
+                    ▼                               ▼
+┌───────────────────────────────┐   ┌───────────────────────────────┐
+│  LuceneIndexService           │   │  TemplateService              │
+│  ├── rebuildIndex()           │   │  ├── searchLocalRepository()  │
+│  ├── updateIndex()            │   │  ├── searchByPath()           │
+│  └── fetchLocalMetaConfig()   │   │  ├── fetchRemoteMetaConfig()  │
+└───────────────────────────────┘   │  └── smartDownloadTemplate()  │
+                │                   └───────────────────────────────┘
+                │                               │
+                ▼                               ▼
+┌───────────────────────────────┐   ┌───────────────────────────────┐
+│  Lucene 索引                   │   │  SDKUtils (核心工具层)         │
+│  (lucene-index/)              │   │  ├── searchLocalRepository()  │
+│  ├── 中文分词 (SmartCN)        │   │  ├── searchByPath()           │
+│  └── 全文检索                  │   │  ├── fetchRemoteMetaConfig()  │
+└───────────────────────────────┘   │  ├── smartDownloadTemplate()  │
+                                    │  └── downloadAndExtract...()  │
+                                    └───────────────────────────────┘
+                                                │
+                                                ▼
+                                ┌───────────────────────────────────┐
+                                │  本地缓存 (codestyle-cache/)       │
+                                │  └── {groupId}/{artifactId}/      │
+                                │      ├── meta.json                │
+                                │      └── {version}/...            │
+                                └───────────────────────────────────┘
 ```
 
 ## 项目结构
+
 ```text
 mcp-codestyle-server
 ├── pom.xml
@@ -66,7 +77,7 @@ mcp-codestyle-server
 │   ├── java/top/codestyle/mcp
 │   │   ├── McpServerApplication.java        # 应用入口
 │   │   ├── config
-│   │   │   └── RepositoryConfig.java        # 仓库路径配置（支持降级）
+│   │   │   └── RepositoryConfig.java        # 仓库路径配置（支持远程检索开关）
 │   │   ├── model
 │   │   │   ├── meta/                        # 本地缓存模型
 │   │   │   │   ├── LocalMetaConfig.java     # 本地 meta.json 结构（多版本）
@@ -81,6 +92,7 @@ mcp-codestyle-server
 │   │   │       └── TreeNode.java            # 树节点实现
 │   │   ├── service
 │   │   │   ├── CodestyleService.java        # MCP 工具实现（@McpTool）
+│   │   │   ├── LuceneIndexService.java      # Lucene 本地索引服务（全文检索）
 │   │   │   ├── TemplateService.java         # 模板业务编排
 │   │   │   └── PromptService.java           # 提示词模板加载（懒加载）
 │   │   └── util
@@ -91,10 +103,20 @@ mcp-codestyle-server
 │       ├── application.yml                  # 配置文件
 │       ├── content-result.txt               # 模板内容提示词模板
 │       └── search-result.txt                # 搜索结果提示词模板
-└── examples/               # 示例增删改查模板(匹配Continew Admin Ver4.0.0)
+└── examples/                                # 示例模板
+    └── continew/                            # ContiNew 框架模板组
+        ├── CRUD/                            # 增删改查模板
+        │   ├── meta.json                    # 模板元数据
+        │   └── 1.0.0/                       # 版本目录
+        │       ├── README.md                # 模板说明文档
+        │       ├── backend/                 # 后端模板
+        │       └── frontend/                # 前端模板
+        └── Logo/                            # Logo 模板组
+            └── 1.0.0/
 ```
 
 ## 配置说明
+
 核心配置位于 `src/main/resources/application.yml`，可通过 JVM 系统属性覆盖。
 
 ```yaml
@@ -102,34 +124,46 @@ spring:
   application:
     name: mcp-codestyle-server
   main:
-    web-application-type: none      # 关闭Web服务器
-    banner-mode: off                # 关闭启动横幅
+    web-application-type: none # 关闭Web服务器
+    banner-mode: off # 关闭启动横幅
   ai:
     mcp:
       server:
-        name: mcp-codestyle-server  # MCP服务器名称
-        version: 0.0.1              # 版本号
-        stdio: true                 # 启用STDIO模式
+        name: mcp-codestyle-server # MCP服务器名称
+        version: 1.0.0 # 版本号
+        type: SYNC # 服务器类型: SYNC(同步) 或 ASYNC(异步)
+        stdio: true # 启用STDIO模式
+        annotation-scanner:
+          enabled: true # 启用注解扫描
 
 repository:
-  local-path: /var/cache/codestyle        # 本地基础路径
-  remote-path: http://localhost      # 远程仓库地址（需配置）
-  dir:   # 可选，不配置则使用local-path/codestyle-cache
+  local-path: /var/cache/codestyle # 本地基础路径
+  remote-path: http://localhost # 远程仓库地址（需配置）
+  dir: # 可选，不配置则使用local-path/codestyle-cache
+  remote-search-enabled: false # 是否启用远程检索（默认false，使用本地Lucene检索）
 ```
 
 ### 配置项说明：
+
 - `repository.local-path`：本地缓存基础目录（可通过 `-Dcache.base-path` 覆盖）
 - `repository.dir`：具体缓存文件夹，默认为 `<local-path>/codestyle-cache`
-- `repository.remote-path`：**必须配置**，远程仓库基础URL
+- `repository.remote-path`：远程仓库基础 URL（仅在启用远程检索时需要配置）
+- `repository.remote-search-enabled`：**检索模式开关**
+  - `false`（默认）：使用本地 Lucene 全文检索，无需网络连接
+  - `true`：使用远程 API 检索，需配置远程仓库地址
 
 ### 远程服务接口：
+
 远程服务提供以下两个接口：
 
 1. **获取模板元数据**
+
    ```
    GET {remoteBaseUrl}/api/mcp/search?templateKeyword=CRUD
    ```
+
    返回 `RemoteMetaConfig` JSON 格式：
+
    ```json
    {
      "groupId": "backend",
@@ -157,7 +191,7 @@ repository:
    }
    ```
 
-2. **下载模板ZIP**
+2. **下载模板 ZIP**
    ```
    GET {remoteBaseUrl}/api/file/load?paths=/groupId/artifactId
    ```
@@ -175,10 +209,12 @@ repository:
 ## 快速开始
 
 ### 1. 前置条件
+
 - JDK 17+
 - Maven 3.9+（或使用项目自带的 `mvnw` / `mvnw.cmd`）
 
 ### 2. 克隆并构建
+
 ```bash
 git clone https://github.com/itxaiohanglover/mcp-codestyle-server.git
 cd mcp-codestyle-server
@@ -186,13 +222,16 @@ cd mcp-codestyle-server
 ```
 
 ### 3. 配置远程仓库地址
+
 编辑 `src/main/resources/application.yml`，将 `repository.remote-path` 修改为实际的远程服务器地址：
+
 ```yaml
 repository:
-  remote-path: http://your-server.com  # 替换为实际地址
+  remote-path: http://your-server.com # 替换为实际地址
 ```
 
 ### 4. 运行 MCP 服务器
+
 ```bash
 # Windows
 java ^
@@ -200,8 +239,9 @@ java ^
   -Dspring.main.web-application-type=none ^
   -Dlogging.pattern.console= ^
   -Dcache.base-path=C:/mcp-cache ^
+  -Dfile.encoding=UTF-8 ^
   -Drepository.remote-path=http://your-server.com ^
-  -jar target/mcp-codestyle-server-0.0.1.jar
+  -jar target/mcp-codestyle-server-1.0.2.jar
 
 # Linux/macOS
 java \
@@ -209,14 +249,17 @@ java \
   -Dspring.main.web-application-type=none \
   -Dlogging.pattern.console= \
   -Dcache.base-path=/mcp-cache \
+  -Dfile.encoding=UTF-8 \
   -Drepository.remote-path=http://your-server.com \
-  -jar target/mcp-codestyle-server-0.0.1.jar
+  -jar target/mcp-codestyle-server-1.0.2.jar
 ```
 
 ### 5. 配置 MCP 客户端
 
 #### Cherry Studio 配置示例
+
 在设置 -> MCP Servers 中添加：
+
 ```json
 {
   "mcpServers": {
@@ -226,6 +269,7 @@ java \
         "-Dspring.ai.mcp.server.stdio=true",
         "-Dspring.main.web-application-type=none",
         "-Dlogging.pattern.console=",
+        "-Dfile.encoding=UTF-8"
         "-jar",
         "C:/path/to/mcp-codestyle-server/target/mcp-codestyle-server-0.0.1.jar"
       ],
@@ -234,8 +278,9 @@ java \
   }
 }
 ```
+
 ![打开Cherry Studio](img/image.png)
-注意实际jar路径和参数配置一致
+注意实际 jar 路径和参数配置一致
 ![添加Json导入MCP](img/image-1.png)
 添加成功
 ![成功添加](img/image-2.png)
@@ -243,7 +288,9 @@ java \
 ![查看已注册工具](img/image-3.png)
 
 #### Cursor 配置示例
+
 在 `~/.cursor/mcp_settings.json` 中添加：
+
 ```json
 {
   "mcpServers": {
@@ -253,6 +300,7 @@ java \
         "-Dspring.ai.mcp.server.stdio=true",
         "-Dspring.main.web-application-type=none",
         "-Dlogging.pattern.console=",
+        "-Dfile.encoding=UTF-8",
         "-jar",
         "/path/to/mcp-codestyle-server/target/mcp-codestyle-server-0.0.1.jar"
       ]
@@ -260,17 +308,21 @@ java \
   }
 }
 ```
+
 ![在cursor中添加MCP](img/image-4.png)
 启用服务器后，在聊天界面即可调用工具。
 
 ## MCP 工具
 
 ### 1. codestyleSearch - 搜索模板目录树
+
 **参数：**
+
 - `templateKeyword` (String): 模板关键词
   - 示例：`CRUD`、`backend`、`frontend`
 
 **响应示例：**
+
 ```
 找到模板组: CRUD
 
@@ -293,7 +345,15 @@ backend/
 ```
 
 **执行流程：**
+
 ```
+# 本地Lucene检索模式（默认）
+1. luceneIndexService.fetchLocalMetaConfig(keyword)  → 本地全文检索
+2. searchLocalRepository(groupId, artifactId)        → 从本地 meta.json 读取文件列表
+3. PromptUtils.buildTree(metaInfos)                  → 构建目录树结构
+4. promptService.buildSearchResult()                 → 格式化输出
+
+# 远程检索模式（remote-search-enabled=true）
 1. fetchRemoteMetaConfig(keyword)     → 调用远程 API 获取模板配置
 2. smartDownloadTemplate(config)      → SHA256 比对，按需下载
 3. searchLocalRepository(groupId, artifactId)  → 从本地 meta.json 读取文件列表
@@ -302,12 +362,15 @@ backend/
 ```
 
 ### 2. getTemplateByPath - 获取模板详细内容
+
 **参数：**
+
 - `templatePath` (String): 完整模板路径
   - 格式：`groupId/artifactId/version/filePath/filename`
   - 示例：`backend/CRUD/1.0.0/src/main/java/com/air/controller/Controller.ftl`
 
 **响应示例：**
+
 ```
 #文件名：backend/CRUD/1.0.0/src/main/java/com/air/controller/Controller.ftl
 #文件变量：
@@ -322,6 +385,7 @@ public class ${className} {
 ```
 
 **执行流程：**
+
 ```
 1. searchByPath(path)                 → 从路径解析 groupId/artifactId，直接定位 meta.json
 2. 如未找到 → fetchRemoteMetaConfig() + smartDownloadTemplate()  → 自动修复
@@ -332,22 +396,29 @@ public class ${className} {
 ## 模板仓库结构
 
 ### 本地缓存目录结构
+
 ```
 codestyle-cache/
-└── backend/                    # groupId
+├── lucene-index/               # Lucene 全文索引目录
+│   ├── _1.cfe
+│   ├── _1.cfs
+│   ├── _1.si
+│   └── segments_2
+└── continew/                   # groupId
     └── CRUD/                   # artifactId
-        ├── meta.json          # 元数据配置
-        └── v1.0.0/            # version
-            └── src/
-                └── main/
-                    └── java/
-                        └── com/
-                            └── air/
-                                └── controller/
-                                    └── Controller.ftl
+        ├── meta.json           # 元数据配置
+        ├── preview.png         # 预览图（可选）
+        └── 1.0.0/              # version
+            ├── README.md       # 模板说明文档
+            ├── backend/        # 后端模板
+            │   ├── sql/
+            │   └── src/
+            └── frontend/       # 前端模板
+                └── src/
 ```
 
 ### meta.json 格式（本地）
+
 ```json
 {
   "groupId": "backend",
@@ -377,6 +448,7 @@ codestyle-cache/
 ```
 
 **特点：**
+
 - 支持多版本共存（`configs` 数组）
 - SHA256 校验保证文件完整性
 - 精确的文件路径和变量描述
@@ -384,6 +456,7 @@ codestyle-cache/
 ## 提示词模板
 
 ### content-result.txt（模板内容）
+
 ```
 #文件名：%{s}
 #文件变量：
@@ -391,9 +464,11 @@ codestyle-cache/
 #文件内容：
 %{s}
 ```
-- 3个占位符：文件名、变量列表、模板内容
+
+- 3 个占位符：文件名、变量列表、模板内容
 
 ### search-result.txt（搜索结果）
+
 ```
 找到模板组: %{s}
 
@@ -402,11 +477,47 @@ codestyle-cache/
 模板组介绍:
 %{s}
 ```
-- 3个占位符：groupId/artifactId、目录树、描述
+
+- 3 个占位符：groupId/artifactId、目录树、描述
 
 可编辑这些文件以适配不同 MCP 客户端的响应风格。
 
 ## 核心逻辑详解
+
+### Lucene 本地索引机制
+
+v1.0.2 版本引入了 Apache Lucene 全文检索引擎，实现离线模板检索能力：
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  LuceneIndexService                                         │
+├─────────────────────────────────────────────────────────────┤
+│  初始化流程 (@PostConstruct)                                 │
+│  1. 创建 lucene-index 目录                                   │
+│  2. 初始化 SmartChineseAnalyzer (中文分词器)                  │
+│  3. 扫描本地仓库所有 meta.json                               │
+│  4. 为每个模板建立索引文档                                    │
+└─────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────┐
+│  索引文档结构                                                │
+│  ├── groupId (StringField)      → 精确匹配                  │
+│  ├── artifactId (StringField)   → 精确匹配                  │
+│  ├── metaPath (StringField)     → meta.json 路径            │
+│  ├── description (TextField)    → 全文检索 (README.md内容)   │
+│  └── content (TextField)        → 组合检索字段               │
+└─────────────────────────────────────────────────────────────┘
+```
+
+**索引特性：**
+
+| 特性     | 说明                                          |
+| -------- | --------------------------------------------- |
+| 中文分词 | 使用 SmartChineseAnalyzer，支持中文关键词检索 |
+| 自动重建 | 启动时自动扫描并重建索引                      |
+| 增量更新 | 下载新模板后自动更新对应索引                  |
+| 离线检索 | 无需网络连接，本地即可完成模板搜索            |
 
 ### 模板更新机制
 
@@ -455,13 +566,13 @@ codestyle-cache/
 
 ### 更新触发条件
 
-| 条件 | 触发更新 |
-|------|---------|
-| 本地 meta.json 不存在 | ✅ |
-| 远程版本在本地不存在 | ✅ |
-| 远程文件在本地不存在 | ✅ |
-| 文件 SHA256 不一致 | ✅ |
-| 所有文件 SHA256 一致 | ❌ 跳过下载 |
+| 条件                  | 触发更新    |
+| --------------------- | ----------- |
+| 本地 meta.json 不存在 | ✅          |
+| 远程版本在本地不存在  | ✅          |
+| 远程文件在本地不存在  | ✅          |
+| 文件 SHA256 不一致    | ✅          |
+| 所有文件 SHA256 一致  | ❌ 跳过下载 |
 
 ### 版本合并策略
 
@@ -480,22 +591,26 @@ codestyle-cache/
 ## 开发与测试
 
 ### 运行集成测试
+
 ```bash
 mvn test
 ```
 
 或运行 `CodestyleServiceTest.main()` 方法：
+
 ```java
 // 通过 STDIO 启动 JAR 并调用 MCP 工具
 CodestyleServiceTest.main(new String[]{});
 ```
 
 ### 扩展新模板
+
 1. 在远程仓库添加新的模板 ZIP 和对应的 JSON 配置
 2. 确保 `meta.json` 中的 `sha256` 与实际文件哈希一致
 3. 运行测试验证端到端流程
 
 ### 调试技巧
+
 - 查看日志：移除 `-Dlogging.pattern.console=` 参数
 - 检查缓存：查看 `repository.dir` 配置的目录
 - 验证远程接口：使用 `curl` 或 Postman 测试远程 API
@@ -503,29 +618,58 @@ CodestyleServiceTest.main(new String[]{});
 ## 常见问题
 
 ### Q: 如何清理本地缓存？
+
 A: 删除 `repository.dir` 配置的目录，下次运行时会自动重新下载。
 
 ### Q: 如何支持多用户？
+
 A: 为每个用户配置不同的 `cache.base-path`，或在 `groupId` 前添加用户标识。
 
 ### Q: 远程仓库不可用时如何处理？
+
 A: 系统会继续使用本地缓存，并返回友好的错误提示。
 
 ### Q: 为什么下载后本地 meta.json 和远程不一样？
+
 A: 本地 meta.json 使用 `configs` 数组支持**多版本共存**，而远程返回的是单版本的 `config` 对象。下载时会自动转换并合并。
 
 ### Q: SHA256 校验失败怎么办？
-A: 删除对应模板目录（如 `codestyle-cache/backend/CRUD/`），系统会重新下载完整模板。
+
+A: 删除对应模板目录（如 `codestyle-cache/continew/CRUD/`），系统会重新下载完整模板。
+
+### Q: 如何切换检索模式？
+
+A: 在 `application.yml` 中设置 `repository.remote-search-enabled`:
+
+- `false`（默认）：本地 Lucene 检索，启动快、无需网络
+- `true`：远程 API 检索，始终获取最新模板信息
+
+### Q: Lucene 索引损坏怎么办？
+
+A: 删除 `codestyle-cache/lucene-index/` 目录，重启服务后会自动重建索引。
 
 ## 许可证
+
 基于 [MIT License](LICENSE) 发布。
 
 ## 作者
+
 - artboy (itxaiohanglover)
 - Kanttha
 - movclantian
 
 ## 更新日志
+
+- **v1.0.2** (2025-12-03)
+  - 集成 Apache Lucene 全文检索引擎
+  - 支持 SmartChineseAnalyzer 中文分词
+  - 实现离线模板检索，无需网络连接
+  - 启动时自动扫描本地仓库并建立索引
+  - 默认使用本地 Lucene 检索（false）
+  - 可切换为远程 API 检索模式（true）
+  - 拉取远程模板后自动更新 Lucene 索引
+  - 保证本地索引与模板文件同步
+
 - **v0.0.1** (2025-11-27)
   - 初始版本
   - 支持 `codestyleSearch` 和 `getTemplateByPath` 工具
