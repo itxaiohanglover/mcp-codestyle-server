@@ -660,7 +660,7 @@ A: 删除 `codestyle-cache/lucene-index/` 目录，重启服务后会自动重�
 
 ## 更新日志
 
-- **v1.0.2** (2025-12-03)
+- **v1.0** (2025-12-03)
   - 集成 Apache Lucene 全文检索引擎
   - 支持 SmartChineseAnalyzer 中文分词
   - 实现离线模板检索，无需网络连接
@@ -669,8 +669,6 @@ A: 删除 `codestyle-cache/lucene-index/` 目录，重启服务后会自动重�
   - 可切换为远程 API 检索模式（true）
   - 拉取远程模板后自动更新 Lucene 索引
   - 保证本地索引与模板文件同步
-
-- **v0.0.1** (2025-11-27)
   - 初始版本
   - 支持 `codestyleSearch` 和 `getTemplateByPath` 工具
   - Maven 风格目录结构
