@@ -1,26 +1,31 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project xmlns="http://maven.apache.org/POM/4.0.0"
-    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-    xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
+                             https://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
-    <!--  Springboot版本。需要使用springboot3以上版本。  -->
+
     <parent>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
         <version>3.2.5</version>
-        <relativePath />
+        <relativePath/>
     </parent>
+
     <groupId>top.codestyle.mcp</groupId>
     <artifactId>mcp-codestyle-server</artifactId>
     <version>1.0.2</version>
-    <name>mcp-codestyle-server</name>
-    <description>mcp-codestyle-server</description>
+    <packaging>maven-plugin</packaging>
+
     <properties>
-        <jackson.version>2.17.0</jackson.version>
-        <!--  Java运行环境。要求JDK版本17+ -->
         <java.version>17</java.version>
+        <okhttp3.version>4.12.0</okhttp3.version>
+        <jackson.version>2.17.0</jackson.version>
+        <maven.plugin.version>3.8.6</maven.plugin.version>
     </properties>
+
     <dependencies>
+        <!-- 原工程依赖全部保留 -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-test</artifactId>
@@ -80,6 +85,25 @@
             <artifactId>concurrentlinkedhashmap-lru</artifactId>
             <version>1.4.2</version>
         </dependency>
+        <dependency>
+            <groupId>com.squareup.okhttp3</groupId>
+            <artifactId>okhttp</artifactId>
+            <version>${okhttp3.version}</version>
+        </dependency>
+
+        <!-- Maven Plugin API -->
+        <dependency>
+            <groupId>org.apache.maven</groupId>
+            <artifactId>maven-plugin-api</artifactId>
+            <version>${maven.plugin.version}</version>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.maven.plugin-tools</groupId>
+            <artifactId>maven-plugin-annotations</artifactId>
+            <version>3.6.4</version>
+            <scope>provided</scope>
+        </dependency>
     </dependencies>
 
     <build>
@@ -87,10 +111,30 @@
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
+                <!-- 去掉 repackage，主 jar 保持插件结构 -->
                 <executions>
                     <execution>
+                        <id>repackage</id>
+                        <phase>none</phase>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-plugin-plugin</artifactId>
+                <version>3.6.4</version>
+                <configuration>
+                    <goalPrefix>codestyle</goalPrefix>
+                    <!-- 只保留 java-annotations 提取器，避免重复 -->
+                    <extractors>
+                        <extractor>java-annotations</extractor>
+                    </extractors>
+                </configuration>
+                <executions>
+                    <execution>
+                        <id>mojo-descriptor</id>
                         <goals>
-                            <goal>repackage</goal>
+                            <goal>descriptor</goal>
                         </goals>
                     </execution>
                 </executions>

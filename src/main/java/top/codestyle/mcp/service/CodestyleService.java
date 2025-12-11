@@ -4,12 +4,14 @@ import lombok.RequiredArgsConstructor;
 import org.springaicommunity.mcp.annotation.McpTool;
 import org.springaicommunity.mcp.annotation.McpToolParam;
 import org.springframework.stereotype.Service;
+import top.codestyle.mcp.config.RepositoryConfig;
+import top.codestyle.mcp.config.RepositoryConfigHolder;
+import top.codestyle.mcp.config.RepositoryConfigStub;
 import top.codestyle.mcp.model.meta.LocalMetaInfo;
 import top.codestyle.mcp.model.sdk.MetaInfo;
 import top.codestyle.mcp.model.sdk.RemoteMetaConfig;
 import top.codestyle.mcp.model.tree.TreeNode;
 import top.codestyle.mcp.util.PromptUtils;
-
 import java.io.IOException;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -24,10 +26,28 @@ import java.util.Map;
 @Service
 @RequiredArgsConstructor
 public class CodestyleService {
-
+    private final RepositoryConfig repositoryConfig;
     private final TemplateService templateService;
     private final PromptService promptService;
     private final LuceneIndexService luceneIndexService;
+
+    /* 插件构造 */
+    public CodestyleService(boolean remoteEnabled,
+                            String localRepoDir,
+                            String remoteBaseUrl) {
+        this.repositoryConfig   = null;
+        this.luceneIndexService = new LuceneIndexService(localRepoDir);
+        this.promptService      = new PromptService();
+        this.templateService    = new TemplateService(
+                new RepositoryConfigStub(remoteEnabled, localRepoDir, remoteBaseUrl),
+                luceneIndexService);
+    }
+
+    /* 工具方法：拿远程地址 —— 直接问 Holder */
+    private String getRemotePath() {
+        return RepositoryConfigHolder.getRemotePath();
+    }
+
 
     /**
      * 搜索代码模板
@@ -37,9 +57,7 @@ public class CodestyleService {
      * @param templateKeyword 模板提示词,如: CRUD, backend, frontend等
      * @return 模板目录树和描述信息
      */
-    @McpTool(name = "codestyleSearch", description = """
-            根据模板提示词搜索代码模板库，返回匹配的模板目录树和模板组介绍。
-            """)
+    @McpTool(name = "codestyleSearch", description = "根据模板提示词搜索代码模板库，返回匹配的模板目录树和模板组介绍。")
     public String codestyleSearch(
             @McpToolParam(description = "模板提示词，如: CRUD, bankend, frontend等") String templateKeyword) {
         try {
