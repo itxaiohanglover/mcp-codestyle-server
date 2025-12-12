@@ -71,7 +71,7 @@ public class CodestyleService {
 
                 if (remoteConfig == null) {
                     return """
-                            远程仓库不可访问,无法获取模板"%s"的信息。
+                            远程仓库不可访问,无法获取模板"%s"
 
                             建议尝试以下模板提示词：
                             【后端】CRUD, controller, service, mapper, entity
