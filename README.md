@@ -106,9 +106,7 @@ mcp-codestyle-server
 ```
 
 ## 配置说明
-
 核心配置位于 `src/main/resources/application.yml`，可通过 JVM 系统属性覆盖。
-
 ```yaml
 spring:
   application:
