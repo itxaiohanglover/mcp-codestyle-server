@@ -1,5 +1,6 @@
 package top.codestyle.mcp.config;
 
+import jakarta.annotation.PostConstruct;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -62,6 +63,11 @@ public class RepositoryConfig {
         return remotePath;
     }
 
+    @PostConstruct
+    public void init() {
+        RepositoryConfigHolder.inject(this);
+    }
+
     /**
      * 获取仓库目录路径
      */
@@ -88,26 +94,27 @@ public class RepositoryConfig {
      */
     @Bean
     public Path repositoryDirectory() {
-        try {
-            String normalizedRepoDir = SDKUtils.normalizePath(getRepositoryDir());
-            Path repoPath = Paths.get(normalizedRepoDir);
-
-            if (!Files.exists(repoPath)) {
-                Files.createDirectories(repoPath);
-            }
-            return repoPath;
-        } catch (Exception e) {
-            String fallbackTempDir = System.getProperty("java.io.tmpdir") + File.separator + "codestyle-cache";
-            Path fallbackPath = Paths.get(fallbackTempDir);
-            try {
-                if (!Files.exists(fallbackPath)) {
-                    Files.createDirectories(fallbackPath);
-                }
-                return fallbackPath;
-            } catch (Exception ex) {
-                throw new RuntimeException("无法创建仓库目录", ex);
-            }
-        }
+//        try {
+//            String normalizedRepoDir = SDKUtils.normalizePath(getRepositoryDir());
+//            Path repoPath = Paths.get(normalizedRepoDir);
+//
+//            if (!Files.exists(repoPath)) {
+//                Files.createDirectories(repoPath);
+//            }
+//            return repoPath;
+//        } catch (Exception e) {
+//            String fallbackTempDir = System.getProperty("java.io.tmpdir") + File.separator + "codestyle-cache";
+//            Path fallbackPath = Paths.get(fallbackTempDir);
+//            try {
+//                if (!Files.exists(fallbackPath)) {
+//                    Files.createDirectories(fallbackPath);
+//                }
+//                return fallbackPath;
+//            } catch (Exception ex) {
+//                throw new RuntimeException("无法创建仓库目录", ex);
+//            }
+//        }
+        return RepositoryConfigHolder.buildRepositoryPath();
     }
 
 }

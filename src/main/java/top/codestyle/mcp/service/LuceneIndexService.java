@@ -8,8 +8,14 @@ import jakarta.annotation.PreDestroy;
 import lombok.RequiredArgsConstructor;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.cn.smart.SmartChineseAnalyzer;
-import org.apache.lucene.document.*;
-import org.apache.lucene.index.*;
+import org.apache.lucene.document.Document;
+import org.apache.lucene.document.Field;
+import org.apache.lucene.document.StringField;
+import org.apache.lucene.document.TextField;
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.Term;
 import org.apache.lucene.queryparser.classic.QueryParser;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.store.Directory;
@@ -41,6 +47,7 @@ public class LuceneIndexService {
             F_CONTENT = "content";
 
     private final RepositoryConfig repositoryConfig;
+    private final String localRepoDir;       // 插件直接路径
     private final ReentrantReadWriteLock indexLock = new ReentrantReadWriteLock();
     private Directory directory;
     private Analyzer analyzer;
@@ -53,7 +60,7 @@ public class LuceneIndexService {
      */
     @PostConstruct
     public void init() throws IOException {
-        var indexPath = Paths.get(repositoryConfig.getRepositoryDir(), INDEX_DIR);
+        var indexPath = Paths.get(getRepoDir(), INDEX_DIR);
         FileUtil.mkdir(indexPath.toFile());
         directory = FSDirectory.open(indexPath);
         analyzer = new SmartChineseAnalyzer();
@@ -68,8 +75,7 @@ public class LuceneIndexService {
      */
     @PreDestroy
     public void destroy() throws IOException {
-        if (directory != null)
-            directory.close();
+        if (directory != null) directory.close();
     }
 
     /**
@@ -83,7 +89,7 @@ public class LuceneIndexService {
         try {
             var config = new IndexWriterConfig(analyzer).setOpenMode(IndexWriterConfig.OpenMode.CREATE);
             try (var writer = new IndexWriter(directory, config)) {
-                scanAndIndexTemplates(writer, repositoryConfig.getRepositoryDir());
+                scanAndIndexTemplates(writer, getRepoDir());   //  用统一工具
             }
         } finally {
             indexLock.writeLock().unlock();
@@ -198,7 +204,7 @@ public class LuceneIndexService {
      * 根据关键词检索本地索引,返回Top1匹配结果
      *
      * @param keyword 搜索关键词
-     * @return 匹配的模板信息,未找到返回null
+     * @return 匹配的模板信息, 未找到返回null
      */
     public SearchResult fetchLocalMetaConfig(String keyword) {
         indexLock.readLock().lock();
@@ -238,4 +244,20 @@ public class LuceneIndexService {
      */
     public record SearchResult(String groupId, String artifactId, String description, String metaPath) {
     }
+
+    public LuceneIndexService(RepositoryConfig repositoryConfig) {
+        this.repositoryConfig = repositoryConfig;
+        this.localRepoDir     = null;
+    }
+
+    public LuceneIndexService(String localRepoDir) {
+        this.repositoryConfig = null;
+        this.localRepoDir     = localRepoDir;
+    }
+    private String getRepoDir() {
+        return repositoryConfig != null
+                ? repositoryConfig.getRepositoryDir()
+                : localRepoDir;
+    }
+
 }

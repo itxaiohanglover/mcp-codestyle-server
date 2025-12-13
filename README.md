@@ -73,52 +73,40 @@ Codestyle Server MCP 是一个基于 Spring AI 实现的 Model Context Protocol 
 ```text
 mcp-codestyle-server
 ├── pom.xml
-├── src/main
-│   ├── java/top/codestyle/mcp
-│   │   ├── McpServerApplication.java        # 应用入口
-│   │   ├── config
-│   │   │   └── RepositoryConfig.java        # 仓库路径配置（支持远程检索开关）
-│   │   ├── model
-│   │   │   ├── meta/                        # 本地缓存模型
-│   │   │   │   ├── LocalMetaConfig.java     # 本地 meta.json 结构（多版本）
-│   │   │   │   ├── LocalMetaInfo.java       # 本地模板元信息
-│   │   │   │   └── LocalMetaVariable.java   # 本地变量（预留扩展）
-│   │   │   ├── sdk/                         # SDK 模型
-│   │   │   │   ├── MetaInfo.java            # 通用模板元信息
-│   │   │   │   ├── MetaVariable.java        # 模板变量
-│   │   │   │   └── RemoteMetaConfig.java    # 远程 API 响应结构（单版本）
-│   │   │   └── tree/                        # 目录树模型
-│   │   │       ├── Node.java                # 节点接口
-│   │   │       └── TreeNode.java            # 树节点实现
-│   │   ├── service
-│   │   │   ├── CodestyleService.java        # MCP 工具实现（@McpTool）
-│   │   │   ├── LuceneIndexService.java      # Lucene 本地索引服务（全文检索）
-│   │   │   ├── TemplateService.java         # 模板业务编排
-│   │   │   └── PromptService.java           # 提示词模板加载（懒加载）
-│   │   └── util
-│   │       ├── SDKUtils.java                # 核心工具（搜索/下载/SHA256）
-│   │       ├── MetaInfoConvertUtil.java     # 元信息转换
-│   │       └── PromptUtils.java             # 目录树和变量格式化
-│   └── resources
-│       ├── application.yml                  # 配置文件
-│       ├── content-result.txt               # 模板内容提示词模板
-│       └── search-result.txt                # 搜索结果提示词模板
-└── examples/                                # 示例模板
-    └── continew/                            # ContiNew 框架模板组
-        ├── CRUD/                            # 增删改查模板
-        │   ├── meta.json                    # 模板元数据
-        │   └── 1.0.0/                       # 版本目录
-        │       ├── README.md                # 模板说明文档
-        │       ├── backend/                 # 后端模板
-        │       └── frontend/                # 前端模板
-        └── Logo/                            # Logo 模板组
-            └── 1.0.0/
+└── src/main
+    ├── java/top/codestyle/mcp
+    │   ├── McpServerApplication.java        # 应用入口
+    │   ├── config
+    │   │   └── RepositoryConfig.java        # 仓库路径配置（支持远程检索开关）
+    │   ├── model
+    │   │   ├── meta/                        # 本地缓存模型
+    │   │   │   ├── LocalMetaConfig.java     # 本地 meta.json 结构（多版本）
+    │   │   │   ├── LocalMetaInfo.java       # 本地模板元信息
+    │   │   │   └── LocalMetaVariable.java   # 本地变量（预留扩展）
+    │   │   ├── sdk/                         # SDK 模型
+    │   │   │   ├── MetaInfo.java            # 通用模板元信息
+    │   │   │   ├── MetaVariable.java        # 模板变量
+    │   │   │   └── RemoteMetaConfig.java    # 远程 API 响应结构（单版本）
+    │   │   └── tree/                        # 目录树模型
+    │   │       ├── Node.java                # 节点接口
+    │   │       └── TreeNode.java            # 树节点实现
+    │   ├── service
+    │   │   ├── CodestyleService.java        # MCP 工具实现（@McpTool）
+    │   │   ├── LuceneIndexService.java      # Lucene 本地索引服务（全文检索）
+    │   │   ├── TemplateService.java         # 模板业务编排
+    │   │   └── PromptService.java           # 提示词模板加载（懒加载）
+    │   └── util
+    │       ├── SDKUtils.java                # 核心工具（搜索/下载/SHA256）
+    │       ├── MetaInfoConvertUtil.java     # 元信息转换
+    │       └── PromptUtils.java             # 目录树和变量格式化
+    └── resources
+        ├── application.yml                  # 配置文件
+        ├── content-result.txt               # 模板内容提示词模板
+        └── search-result.txt                # 搜索结果提示词模板
 ```
 
 ## 配置说明
-
 核心配置位于 `src/main/resources/application.yml`，可通过 JVM 系统属性覆盖。
-
 ```yaml
 spring:
   application:
