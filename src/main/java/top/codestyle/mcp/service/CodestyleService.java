@@ -1,5 +1,7 @@
 package top.codestyle.mcp.service;
 
+import cn.hutool.json.JSONUtil;
+import com.github.javaparser.ParseProblemException;
 import lombok.RequiredArgsConstructor;
 
 import org.springaicommunity.mcp.annotation.McpTool;
@@ -9,6 +11,7 @@ import top.codestyle.mcp.config.RepositoryConfig;
 import top.codestyle.mcp.model.template.TemplateMetaInfo;
 import top.codestyle.mcp.model.remote.RemoteSearchResult;
 import top.codestyle.mcp.model.tree.TreeNode;
+import top.codestyle.mcp.util.AstTemplateGenerator;
 import top.codestyle.mcp.util.CodestyleClient;
 import top.codestyle.mcp.util.PromptUtils;
 
@@ -307,6 +310,28 @@ public class CodestyleService {
             return "✗ 上传失败: " + e.getMessage();
         } catch (Exception e) {
             return "✗ 上传失败: " + e.getMessage();
+        }
+    }
+
+    /**
+     * 传入标准 Java 代码，基于 AST 提取核心变量并生成 .ftl 模板内容。
+     *
+     * @param rawJavaCode 标准的 Java 源代码字符串
+     * @return 包含模板内容和变量清单的 JSON 字符串
+     */
+    @McpTool(name = "generateTemplateFromCode", description = "传入标准Java代码，基于AST进行静态结构分析，自动提取变量并将其转换为.ftl模板，返回包含模板内容和输入变量清单的JSON，用于辅助模板生成工作流")
+    public String generateTemplateFromCode(
+            @McpToolParam(description = "标准的Java源代码字符串") String rawJavaCode) {
+        if (rawJavaCode == null || rawJavaCode.isBlank()) {
+            return "输入代码为空，请提供标准Java源代码后再试";
+        }
+        try {
+            AstTemplateGenerator.GenerateResult result = AstTemplateGenerator.generate(rawJavaCode);
+            return JSONUtil.toJsonPrettyStr(result);
+        } catch (ParseProblemException e) {
+            return "代码语法不完整，AST解析失败，请检查或补充导入语句后再试";
+        } catch (Exception e) {
+            return "模板生成失败: " + e.getMessage();
         }
     }
 
