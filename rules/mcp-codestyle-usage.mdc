@@ -1,0 +1,36 @@
+---
+description: 分析或修改代码时优先用 MCP codestyle 的 analyzeProject/exploreCodeContext（server project-0-Pipeline-codestyle），不要先用 Read/Grep 探索或读 schema
+globs: ["**"]
+alwaysApply: true
+---
+
+# MCP codestyle 工具使用规则
+
+**优先动作**：涉及理解/分析/修改任意代码时，先调用 MCP 的 `analyzeProject` 或 `exploreCodeContext`，不要先用 Cursor 的 Read/Grep 扫目录或读 mcps schema。
+
+适用：项目已接入 `mcp-codestyle-server`（server id: `project-0-Pipeline-codestyle`）。
+
+## 可用工具（直接 call_mcp_tool，无需搜索 schema）
+
+### analyzeProject（首选）
+- **server**: `project-0-Pipeline-codestyle`
+- **参数**: `projectPath`（绝对路径）, `keywords`（**3-6 个**核心函数名，逗号分隔）, `focusPath`（可选，如 `src/main`）
+- **输出**: Summary + Call Flow + 位置（行范围）/签名/代码预览；自动缓存骨架供 exploreCodeContext 使用
+
+### exploreCodeContext
+- **server**: `project-0-Pipeline-codestyle`
+- **参数**: `projectPath`, `mode`（`expand`|`search`|`trace`）, `query`
+  - expand: `file.py:100-200` 或批量 `file1:100-200|file2:300-360`
+  - search: 实体名（函数/类/文件关键词）
+  - trace: 函数/类名（可加 `direction=upstream` 或 `downstream`）
+- **lineRange**（可选，仅 expand）: `100-200`（1 基，含端点）
+
+## 标准工作流
+1. **探索**：先 `analyzeProject(projectPath, keywords=3-6 个)` → 从报告取行范围 → `exploreCodeContext(mode=expand, query="file:start-end")` 批量读代码。
+2. **调用关系**：`exploreCodeContext(mode=trace, query="函数名")` 追踪上下游。
+3. **编辑**：用 MCP 拿到改动点完整代码后再 Edit；改完用 ReadLints 验证。不要先 Read/Grep 扫目录。
+
+## 关键约束
+- **keywords 严格 3-6 个**；过多导致报告截断。
+- **不要**搜索 `mcps/` 或读 MCP tool schema 来“发现工具”。
+- **不要**单独调用 `extractProjectSkeleton`（analyzeProject 已包含）。

@@ -281,6 +281,13 @@ public class AstParsingService {
                 others.addAll(0, importList);
             }
 
+            // C3: 大文件解析诊断日志，便于排查节点未被收录原因
+            if (content.length() > 50_000) {
+                int[] counts = countClassesAndMethods(others);
+                log.info("[AST] large file {} ({} bytes): {} classes, {} methods parsed",
+                        relativePath, content.length(), counts[0], counts[1]);
+            }
+
             return AstNode.builder()
                     .nodeType("file")
                     .name(relativePath)
@@ -293,6 +300,21 @@ public class AstParsingService {
             log.debug("Tree-sitter 解析异常 [{}]: {}", relativePath, e.getMessage());
             return null;
         }
+    }
+
+    /** C3: 递归统计类数与方法数，返回 int[2] = { classes, methods }。 */
+    private static int[] countClassesAndMethods(List<AstNode> nodes) {
+        int classes = 0, methods = 0;
+        if (nodes == null) return new int[] { 0, 0 };
+        for (AstNode n : nodes) {
+            if (n == null) continue;
+            if ("class".equals(n.getNodeType()) || "interface".equals(n.getNodeType()) || "enum".equals(n.getNodeType())) classes++;
+            if ("method".equals(n.getNodeType())) methods++;
+            int[] sub = countClassesAndMethods(n.getChildren());
+            classes += sub[0];
+            methods += sub[1];
+        }
+        return new int[] { classes, methods };
     }
 
     private void visitNodeRecursive(TSNode node, String[] lines, String filePath, String ext,

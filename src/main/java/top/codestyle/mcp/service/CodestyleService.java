@@ -394,26 +394,7 @@ public class CodestyleService {
             if (!refresh) {
                 SkeletonCacheService.CachedSkeleton existing = skeletonCacheService.get(projectPath);
                 if (existing != null && existing.skeleton() != null) {
-                    ProjectSkeleton sk = existing.skeleton();
-                    int files = sk.getTotalFiles();
-                    int classes = sk.getTotalClasses();
-                    int methods = sk.getTotalMethods();
-                    long ageSec = (System.currentTimeMillis() - existing.buildTime()) / 1000;
-                    List<String> topClasses = extractTopClassNames(sk, 10);
-                    List<String> topMethods = extractTopMethodNames(sk, 5);
-                    List<String> fileNames = extractFileNames(sk, 8);
-                    return String.format(
-                            "[cached] 骨架已缓存 (%d文件/%d类/%d方法, %.0f秒前构建)%n" +
-                            "核心类: %s%n" +
-                            "核心方法: %s%n" +
-                            "文件: %s%n" +
-                            "--- 查询示例 ---%n" +
-                            "search(\"类名\") | expand(\"文件路径\") | expand(\"类名\") | trace(\"类名\")%n" +
-                            "expand 支持 lineRange 参数精确定位，如 lineRange=\"100-200\"。如需重新解析请传 forceRefresh=true",
-                            files, classes, methods, (double) ageSec,
-                            topClasses.isEmpty() ? "(无)" : String.join(", ", topClasses),
-                            topMethods.isEmpty() ? "(无)" : String.join(", ", topMethods),
-                            fileNames.isEmpty() ? "(无)" : String.join(", ", fileNames));
+                    return buildCacheHitSummary(existing, existing.skeleton(), projectPath);
                 }
             }
             int level = (detailLevel != null && detailLevel >= 1 && detailLevel <= 4) ? detailLevel : 2;
@@ -467,7 +448,10 @@ public class CodestyleService {
             }
             SkeletonCacheService.CachedSkeleton cached = skeletonCacheService.get(projectPath);
             if (cached == null) {
-                return "✗ 未找到该项目的骨架缓存，请先对路径 \"" + projectPath + "\" 调用 extractProjectSkeleton。";
+                cached = ensureSkeletonCached(projectPath, null);
+                if (cached == null) {
+                    return "✗ 项目骨架自动构建失败，请检查 projectPath";
+                }
             }
             String m = (mode != null && !mode.isBlank()) ? mode.strip().toLowerCase() : "search";
             int depth = (maxDepth != null && maxDepth > 0) ? Math.min(maxDepth, 20) : 3;
@@ -483,10 +467,44 @@ public class CodestyleService {
             if (result != null && !result.startsWith("✗") && callNum <= 2) {
                 result = appendNextStepHint(result, m, query);
             }
-            return outputGuardService.guard(result, projectPath, "explore-" + m, MCP_MAX_INLINE_CHARS);
+            if (result != null && !result.startsWith("✗")) {
+                int hitCount = estimateHitCount(result, m);
+                skeletonCacheService.recordExplore(projectPath, m, query, hitCount);
+            }
+            int maxChars = switch (m) {
+                case "search" -> 4_000;
+                case "expand" -> 12_000;
+                case "trace" -> 6_000;
+                default -> MCP_MAX_INLINE_CHARS;
+            };
+            return outputGuardService.guard(result, projectPath, "explore-" + m, maxChars);
         } catch (Exception e) {
             return "✗ exploreCodeContext 失败: " + e.getMessage();
         }
+    }
+
+    private static int estimateHitCount(String result, String mode) {
+        if (result == null || result.isBlank()) return 0;
+        if ("search".equals(mode)) {
+            int idx = result.indexOf(" hits)");
+            if (idx > 0) {
+                int start = result.lastIndexOf(" ", idx - 1);
+                if (start >= 0 && start < idx - 1) {
+                    try {
+                        return Integer.parseInt(result.substring(start + 1, idx).trim());
+                    } catch (NumberFormatException ignored) { }
+                }
+            }
+        }
+        if ("trace".equals(mode)) {
+            int lineCount = 0;
+            for (int i = 0; i < result.length(); i++) {
+                if (result.charAt(i) == '\n') lineCount++;
+            }
+            return Math.max(0, lineCount - 2);
+        }
+        if ("expand".equals(mode)) return 1;
+        return 0;
     }
 
     private static String appendNextStepHint(String result, String mode, String query) {
@@ -570,7 +588,7 @@ public class CodestyleService {
     private String runBatchExpand(SkeletonCacheService.CachedSkeleton cached, String projectPath, String multiQuery) {
         String[] targets = multiQuery.split("\\|");
         if (targets.length == 0) return "✗ 批量 expand 需要至少一个目标，用 | 分隔。";
-        int perTargetBudget = Math.max(500, MCP_MAX_INLINE_CHARS / targets.length);
+        int perTargetBudget = Math.max(500, EXPAND_BATCH_MAX_CHARS / targets.length);
         StringBuilder sb = new StringBuilder();
         sb.append("## batch expand (").append(targets.length).append(" targets)\n\n");
         for (String t : targets) {
@@ -885,6 +903,716 @@ public class CodestyleService {
         return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;");
     }
 
+    /** P3+P4: 确保骨架已缓存，不返回格式化字符串。供 runAnalyze 静默使用。 */
+    public SkeletonCacheService.CachedSkeleton ensureSkeletonCached(String projectPath, String focusPath) {
+        if (projectPath == null || projectPath.isBlank()) return null;
+        SkeletonCacheService.CachedSkeleton existing = skeletonCacheService.get(projectPath);
+        if (existing != null && existing.skeleton() != null) return existing;
+        try {
+            ProjectSkeleton skeleton = astParsingService.parseProject(projectPath, focusPath);
+            DependencyGraph graph = dependencyGraphBuilder.build(skeleton);
+            NameIndex nameIndex = NameIndex.from(graph.getNodeIndex());
+            skeletonCacheService.put(projectPath, skeleton, graph, nameIndex);
+            return skeletonCacheService.get(projectPath);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    /** P3: 单次搜索收集 nodeIds 与 grepHits，供 runAnalyze 使用。 */
+    private record SearchCollectResult(List<String> nodeIds, List<GrepHit> grepHits) {}
+
+    private SearchCollectResult runSingleSearchCollecting(SkeletonCacheService.CachedSkeleton cached, String projectPath, String qRaw) {
+        Map<String, AstNode> index = cached.graph() != null ? cached.graph().getNodeIndex() : Map.of();
+        String qLower = qRaw.toLowerCase();
+        NameIndex nameIndex = cached.nameIndex() != null ? cached.nameIndex() : NameIndex.from(index);
+
+        List<String> allNodeIds = new ArrayList<>();
+        List<GrepHit> allGrepHits = new ArrayList<>();
+
+        List<String> strictIds = nameIndex.lookupStrict(qRaw);
+        if (!strictIds.isEmpty()) {
+            Path root = (projectPath != null && !projectPath.isBlank())
+                    ? Paths.get(projectPath).toAbsolutePath().normalize()
+                    : Paths.get(".").toAbsolutePath().normalize();
+            List<String> fileRelPaths = new ArrayList<>();
+            for (Map.Entry<String, AstNode> e : index.entrySet()) {
+                if (e.getKey() != null && e.getKey().startsWith("file:")) {
+                    AstNode n = e.getValue();
+                    String p = n != null ? n.getFilePath() : e.getKey().substring("file:".length());
+                    if (p != null && !p.isBlank()) fileRelPaths.add(p);
+                }
+            }
+            List<GrepHit> grepHits = grepCodeContent(root, fileRelPaths, qRaw, 10);
+            return new SearchCollectResult(strictIds, grepHits);
+        }
+
+        List<String> nameIds = nameIndex.lookup(qRaw);
+        if (!nameIds.isEmpty()) {
+            for (String id : nameIds) {
+                if (!allNodeIds.contains(id)) allNodeIds.add(id);
+            }
+        }
+        if (allNodeIds.size() < SEARCH_MERGE_THRESHOLD) {
+            for (Map.Entry<String, AstNode> e : index.entrySet()) {
+                String id = e.getKey();
+                AstNode n = e.getValue();
+                if (id == null || n == null) continue;
+                String nm = n.getName();
+                String sig = n.getSignature();
+                boolean nameMatch = nm != null && nm.toLowerCase().contains(qLower);
+                boolean sigMatch = sig != null && sig.toLowerCase().contains(qLower);
+                boolean idMatch = id.toLowerCase().contains(qLower);
+                if (!nameMatch && !sigMatch && idMatch && id.startsWith("method:") && id.contains(".")) {
+                    String methodNameInId = id.substring(id.lastIndexOf('.') + 1);
+                    if (!methodNameInId.toLowerCase().contains(qLower)) {
+                        idMatch = false;
+                    }
+                }
+                if (nameMatch || sigMatch || idMatch) {
+                    if (!allNodeIds.contains(id)) allNodeIds.add(id);
+                    if (allNodeIds.size() >= 60) break;
+                }
+                if (id.startsWith("method:")) {
+                    String suffix = id.contains(".") ? id.substring(id.lastIndexOf('.') + 1) : id.substring(Math.max(id.lastIndexOf(':'), 0) + 1);
+                    if (suffix.toLowerCase().contains(qLower) && !allNodeIds.contains(id)) {
+                        allNodeIds.add(id);
+                        if (allNodeIds.size() >= 60) break;
+                    }
+                }
+            }
+        }
+        if (allNodeIds.size() < SEARCH_MERGE_THRESHOLD) {
+            Path root = (projectPath != null && !projectPath.isBlank())
+                    ? Paths.get(projectPath).toAbsolutePath().normalize()
+                    : Paths.get(".").toAbsolutePath().normalize();
+            List<String> fileRelPaths = new ArrayList<>();
+            for (Map.Entry<String, AstNode> e : index.entrySet()) {
+                String id = e.getKey();
+                AstNode n = e.getValue();
+                if (id != null && id.startsWith("file:")) {
+                    String p = n != null ? n.getFilePath() : id.substring("file:".length());
+                    if (p != null && !p.isBlank()) fileRelPaths.add(p);
+                }
+            }
+            List<GrepHit> hits = grepCodeContent(root, fileRelPaths, qRaw, 25);
+            allGrepHits.addAll(hits);
+        }
+        // C1: 当 0 node hits 但 grep 有命中时，从 grep 命中行反查 nodeIndex 提升为节点
+        if (allNodeIds.isEmpty() && !allGrepHits.isEmpty()) {
+            for (GrepHit h : allGrepHits) {
+                String nodeId = findNodeByFileAndLine(index, h.filePath(), h.line());
+                if (nodeId != null && !allNodeIds.contains(nodeId)) {
+                    allNodeIds.add(nodeId);
+                    if (allNodeIds.size() >= 20) break;
+                }
+            }
+        }
+        return new SearchCollectResult(allNodeIds, allGrepHits);
+    }
+
+    /**
+     * C1: 按文件路径与行号在 nodeIndex 中查找包含该行的最小范围节点（method/class/file）。
+     */
+    private String findNodeByFileAndLine(Map<String, AstNode> index, String filePath, int line) {
+        if (index == null || filePath == null || filePath.isBlank() || line < 1) return null;
+        String pathNorm = filePath.replace("\\", "/");
+        int line0 = line - 1;
+        String bestId = null;
+        int bestSpan = Integer.MAX_VALUE;
+        for (Map.Entry<String, AstNode> e : index.entrySet()) {
+            AstNode n = e.getValue();
+            if (n == null) continue;
+            String fp = n.getFilePath();
+            if (fp == null) fp = e.getKey().startsWith("file:") ? e.getKey().substring("file:".length()) : null;
+            if (fp == null || !fp.replace("\\", "/").equals(pathNorm)) continue;
+            int start = n.getStartLine();
+            int end = n.getEndLine();
+            if (line0 >= start && line0 <= end) {
+                int span = end - start + 1;
+                if (span < bestSpan) {
+                    bestSpan = span;
+                    bestId = e.getKey();
+                }
+            }
+        }
+        return bestId;
+    }
+
+    private static final int EXPAND_BATCH_MAX_CHARS = 12_000;
+    private static final int ANALYZE_REPORT_CHARS_PER_KEYWORD = 1_500;
+    private static final int ANALYZE_REPORT_CHARS_CHAIN_BASE = 2_000;
+    private static final int ANALYZE_MAX_REPORT_CHARS_CAP = 15_000;
+    private static final int ANALYZE_MAX_KEYWORDS = 8;
+    private static final int ANALYZE_TOP_EXPAND_PER_KEYWORD = 3;
+    private static final int ANALYZE_MAX_EXPAND_TOTAL = 8;
+    private static final int ANALYZE_MAX_GREP_PER_KEYWORD = 3;
+    private static final int ANALYZE_PREVIEW_LINES = 12;
+    private static final int ANALYZE_MAX_CALL_CHAIN_EDGES = 12;
+
+    /**
+     * 关键词去重：函数名优先、短名优先。函数名仅做精确去重，类名做子串去重，上限8个。避免 aquery_llm 被 query_llm 子串误删。
+     */
+    private String[] deduplicateKeywords(String[] raw) {
+        if (raw == null || raw.length == 0) return raw;
+        List<String> trimmed = new ArrayList<>();
+        for (String s : raw) {
+            String t = s != null ? s.strip() : "";
+            if (t.length() >= 2) trimmed.add(t);
+        }
+        if (trimmed.isEmpty()) return raw;
+        // 函数名优先（含下划线或首字母小写），同类按长度升序
+        trimmed.sort((a, b) -> {
+            boolean aIsFunc = a.contains("_") || (a.length() > 0 && Character.isLowerCase(a.charAt(0)));
+            boolean bIsFunc = b.contains("_") || (b.length() > 0 && Character.isLowerCase(b.charAt(0)));
+            if (aIsFunc != bIsFunc) return aIsFunc ? -1 : 1;
+            return Integer.compare(a.length(), b.length());
+        });
+        List<String> out = new ArrayList<>();
+        for (String candidate : trimmed) {
+            if (out.size() >= ANALYZE_MAX_KEYWORDS) break;
+            String cLower = candidate.toLowerCase();
+            boolean candidateIsFunc = candidate.contains("_") || (candidate.length() > 0 && Character.isLowerCase(candidate.charAt(0)));
+            boolean isDuplicate = false;
+            for (String kept : out) {
+                String kLower = kept.toLowerCase();
+                if (kLower.equals(cLower)) {
+                    isDuplicate = true;
+                    break;
+                }
+                // 仅对类名(PascalCase)做子串去重，函数名不子串去重
+                if (!candidateIsFunc) {
+                    boolean keptIsFunc = kept.contains("_") || (kept.length() > 0 && Character.isLowerCase(kept.charAt(0)));
+                    if (!keptIsFunc && (kLower.contains(cLower) || cLower.contains(kLower))) {
+                        isDuplicate = true;
+                        break;
+                    }
+                }
+            }
+            if (!isDuplicate) out.add(candidate);
+        }
+        return out.toArray(new String[0]);
+    }
+
+    /**
+     * P3 + B1/B2: 一站式分析 — 关键词去重、预搜索、调用链前置、逐关键词输出，动态报告上限。
+     */
+    public String runAnalyze(String projectPath, String[] keywords, String focusPath) {
+        if (projectPath == null || projectPath.isBlank()) {
+            return "✗ 缺少参数 projectPath（项目目录绝对路径）";
+        }
+        if (keywords == null || keywords.length == 0) {
+            return "✗ 缺少参数 keywords（逗号分隔的搜索关键词）";
+        }
+        String[] deduped = deduplicateKeywords(keywords);
+        int reportCharLimit = Math.min(deduped.length * ANALYZE_REPORT_CHARS_PER_KEYWORD + ANALYZE_REPORT_CHARS_CHAIN_BASE, ANALYZE_MAX_REPORT_CHARS_CAP);
+
+        SkeletonCacheService.CachedSkeleton cached = ensureSkeletonCached(projectPath, focusPath);
+        if (cached == null || cached.skeleton() == null) {
+            return "✗ 项目骨架构建失败，请检查 projectPath 与 focusPath";
+        }
+        ProjectSkeleton sk = cached.skeleton();
+        Map<String, AstNode> index = cached.graph() != null ? cached.graph().getNodeIndex() : Map.of();
+        Path root = Paths.get(projectPath).toAbsolutePath().normalize();
+
+        String projectName = projectPath.replace("\\", "/");
+        if (projectName.contains("/")) projectName = projectName.substring(projectName.lastIndexOf('/') + 1);
+
+        Set<String> prevKeywords = skeletonCacheService.getAnalyzedKeywords(projectPath);
+        boolean isIncremental = prevKeywords != null && !prevKeywords.isEmpty();
+
+        // B2: 预搜索收集所有关键词的 nodeIds 与每关键词结果
+        Set<String> allKeywordNodeIds = new LinkedHashSet<>();
+        List<SearchCollectResult> resultsPerKeyword = new ArrayList<>();
+        List<String> searchedKeywords = new ArrayList<>();
+        for (String kw : deduped) {
+            String q = kw != null ? kw.strip() : "";
+            if (q.length() < 2) continue;
+            SearchCollectResult col = runSingleSearchCollecting(cached, projectPath, q);
+            resultsPerKeyword.add(col);
+            searchedKeywords.add(q);
+            allKeywordNodeIds.addAll(col.nodeIds());
+        }
+
+        StringBuilder header = new StringBuilder();
+        if (isIncremental) {
+            // B3: 增量模式不重复输出项目统计，改为精简头
+            List<String> newlyAdded = searchedKeywords.stream().filter(k -> !prevKeywords.contains(k)).toList();
+
+            // opt-a: 全命中缓存场景 - 直接返回单行摘要，避免逐关键词输出 [cached summary]
+            if (newlyAdded.isEmpty()) {
+                skeletonCacheService.recordAnalyzedKeywords(projectPath, searchedKeywords);
+                return "## " + projectName + " (incremental)\n"
+                        + "All " + searchedKeywords.size() + " keywords already analyzed: "
+                        + String.join(", ", searchedKeywords) + "\n"
+                        + "Use exploreCodeContext(mode=expand) to read code directly.\n\n"
+                        + "---\n"
+                        + "Tip: 可用 exploreCodeContext(mode=expand, query=\"file:start-end\") 读取完整代码（支持批量: file1:range|file2:range），减少 Cursor Read。\n";
+            }
+
+            header.append("## ").append(projectName).append(" (incremental)\n");
+            header.append("Previously analyzed: ").append(String.join(", ", prevKeywords)).append("\n");
+            header.append("New in this call: ").append(String.join(", ", newlyAdded)).append("\n\n");
+        } else {
+            // B1: 首次调用输出项目统计，但去掉无意义的 Files 行
+            header.append("## ").append(projectName)
+                    .append(" (").append(sk.getTotalFiles()).append(" files, ")
+                    .append(sk.getTotalClasses()).append(" classes, ")
+                    .append(sk.getTotalMethods()).append(" methods)\n\n");
+        }
+
+        // 调用链：优先 AST invokes 边，为空时用 grep 交叉引用推断
+        Map<String, Set<String>> callGraphFromGrep = buildCallGraphFromGrep(projectPath, root, index, resultsPerKeyword, searchedKeywords);
+        String chainSection = buildCallChainsSection(cached, allKeywordNodeIds);
+        if (chainSection == null || chainSection.isBlank()) {
+            chainSection = buildChainLinesFromGraph(callGraphFromGrep, searchedKeywords);
+        }
+        String summarySection = buildSummarySection(callGraphFromGrep, searchedKeywords, resultsPerKeyword, index, chainSection);
+        String summaryBlock = (summarySection != null && !summarySection.isBlank())
+                ? ("### Summary\n" + summarySection + "\n\n")
+                : "";
+        String chainBlock = (chainSection != null && !chainSection.isBlank())
+                ? ("### Call Flow\n" + chainSection + "\n\n")
+                : "";
+
+        // 按调用深度排序关键词（入口在前），便于 LLM 直接理解流程
+        List<String> orderedKeywords = topologicalSortKeywords(callGraphFromGrep, searchedKeywords);
+
+        final int headerBudget = 500;
+        final int summaryBudget = 800;
+        final int chainBudget = 1_200;
+        final String footer = "---\n"
+                + "Tip: 可用 exploreCodeContext(mode=expand, query=\"file:start-end\") 读取完整代码（支持批量: file1:range|file2:range），减少 Cursor Read。\n";
+        final int footerBudget = Math.min(280, footer.length());
+
+        int remaining = reportCharLimit;
+        StringBuilder report = new StringBuilder(Math.min(reportCharLimit + 200, ANALYZE_MAX_REPORT_CHARS_CAP + 400));
+
+        String headerBlock = header.toString();
+        if (headerBlock.length() > headerBudget) headerBlock = headerBlock.substring(0, headerBudget);
+        report.append(headerBlock);
+        remaining -= headerBlock.length();
+
+        if (remaining > 0 && !summaryBlock.isBlank()) {
+            String s = summaryBlock;
+            if (s.length() > summaryBudget) s = s.substring(0, summaryBudget);
+            if (s.length() > remaining) s = s.substring(0, remaining);
+            report.append(s);
+            remaining -= s.length();
+        }
+
+        if (remaining > 0 && !chainBlock.isBlank()) {
+            String c = chainBlock;
+            if (c.length() > chainBudget) c = c.substring(0, chainBudget);
+            if (c.length() > remaining) c = c.substring(0, remaining);
+            report.append(c);
+            remaining -= c.length();
+        }
+
+        int kwCount = Math.max(1, orderedKeywords.size());
+        int kwTotalBudget = Math.max(0, remaining - footerBudget);
+        int perKwBudget = kwTotalBudget / kwCount;
+
+        Set<String> expandedIds = new LinkedHashSet<>();
+        for (String q : orderedKeywords) {
+            if (remaining <= footerBudget) break;
+
+            int idx = searchedKeywords.indexOf(q);
+            if (idx < 0 || idx >= resultsPerKeyword.size()) continue;
+            SearchCollectResult col = resultsPerKeyword.get(idx);
+
+            StringBuilder kw = new StringBuilder();
+            if (isIncremental && prevKeywords.contains(q)) {
+                kw.append("### ").append(q).append(" [cached summary]\n");
+                int shown = 0;
+                for (String nodeId : col.nodeIds()) {
+                    String loc = renderAnalyzeNodeLocator(nodeId, index);
+                    if (loc != null && !loc.isBlank()) {
+                        kw.append(loc).append("\n");
+                        if (++shown >= 2) break;
+                    }
+                }
+                if (shown == 0) {
+                    kw.append("(no nodes)\n");
+                }
+                kw.append("\n");
+                String kwStr = kw.toString();
+                if (kwStr.length() > remaining - footerBudget) kwStr = kwStr.substring(0, Math.max(0, remaining - footerBudget));
+                report.append(kwStr);
+                remaining -= kwStr.length();
+                continue;
+            }
+
+            kw.append("### ").append(q).append(" (").append(col.nodeIds().size()).append(" node hits, ")
+                    .append(col.grepHits().size()).append(" grep)\n");
+
+            int taken = 0;
+            for (String nodeId : col.nodeIds()) {
+                if (taken >= ANALYZE_TOP_EXPAND_PER_KEYWORD) break;
+                if (expandedIds.size() >= ANALYZE_MAX_EXPAND_TOTAL) break;
+                if (!expandedIds.add(nodeId)) continue;
+                String preview = renderAnalyzeNodePreview(projectPath, root, nodeId, index, cached.graph(), ANALYZE_PREVIEW_LINES);
+                if (preview != null && !preview.isBlank()) {
+                    kw.append(preview).append("\n");
+                    taken++;
+                }
+            }
+            int grepShown = 0;
+            if (col.nodeIds().isEmpty()) {
+                for (GrepHit h : col.grepHits()) {
+                    if (grepShown >= ANALYZE_MAX_GREP_PER_KEYWORD) break;
+                    // D2: grep 结果增加函数/类上下文
+                    String ctx = "";
+                    String hitNodeId = findNodeByFileAndLine(index, h.filePath(), h.line());
+                    if (hitNodeId != null) {
+                        AstNode n = index.get(hitNodeId);
+                        if (n != null && n.getName() != null && !n.getName().isBlank())
+                            ctx = "in " + n.getName() + " | ";
+                    }
+                    String snippet = h.snippet().length() > 200 ? h.snippet().substring(0, 197) + "..." : h.snippet();
+                    kw.append("[grep] ").append(h.filePath()).append(":").append(h.line())
+                            .append(" | ").append(ctx).append(snippet).append("\n");
+                    grepShown++;
+                }
+            }
+            kw.append("\n");
+
+            String kwStr = kw.toString();
+            int budget = Math.min(perKwBudget, remaining - footerBudget);
+            if (budget > 0 && kwStr.length() > budget) {
+                String suffix = "\n... [" + q + " 截断, 用 exploreCodeContext(mode=expand) 查看完整代码]\n\n";
+                int keep = Math.max(0, budget - suffix.length());
+                kwStr = kwStr.substring(0, Math.min(keep, kwStr.length())) + suffix;
+            }
+            if (kwStr.length() > remaining - footerBudget) kwStr = kwStr.substring(0, Math.max(0, remaining - footerBudget));
+            report.append(kwStr);
+            remaining -= kwStr.length();
+        }
+
+        if (remaining > 0) {
+            String f = footer;
+            if (f.length() > remaining) f = f.substring(0, remaining);
+            report.append(f);
+            remaining -= f.length();
+        }
+
+        skeletonCacheService.recordAnalyzedKeywords(projectPath, searchedKeywords);
+
+        String out = report.toString().trim();
+        if (out.length() > reportCharLimit) {
+            out = out.substring(0, reportCharLimit) + "\n\n... [报告已截断至 " + reportCharLimit + " 字符]";
+        }
+        return out;
+    }
+
+    private static String renderAnalyzeNodeLocator(String nodeId, Map<String, AstNode> index) {
+        if (nodeId == null || index == null) return null;
+        AstNode node = index.get(nodeId);
+        if (node == null) return null;
+        String kind = nodeId.startsWith("file:") ? "file" : (nodeId.startsWith("class:") ? "class" : (nodeId.startsWith("method:") ? "method" : "node"));
+        String name = node.getName() != null ? node.getName() : nodeId;
+        String fp = node.getFilePath();
+        int start = node.getStartLine() + 1;
+        int end = node.getEndLine() + 1;
+        StringBuilder sb = new StringBuilder();
+        sb.append("- [").append(kind).append("] ").append(name);
+        if (fp != null && !fp.isBlank() && start > 0) {
+            sb.append(" -- ").append(fp.replace("\\", "/")).append(":").append(start);
+            if (end > start) sb.append("-").append(end);
+        }
+        return sb.toString();
+    }
+
+    private String renderAnalyzeNodePreview(String projectPath, Path root, String nodeId, Map<String, AstNode> index, DependencyGraph graph, int maxLines) {
+        AstNode node = index.get(nodeId);
+        if (node == null) return null;
+        String kind = nodeId.startsWith("file:") ? "file" : (nodeId.startsWith("class:") ? "class" : (nodeId.startsWith("method:") ? "method" : "node"));
+        String name = node.getName() != null ? node.getName() : nodeId;
+        String fp = node.getFilePath();
+        int line = node.getStartLine() + 1;
+        StringBuilder sb = new StringBuilder();
+        sb.append("[").append(kind).append("] ").append(name);
+        if (fp != null && !fp.isBlank()) {
+            sb.append(" -- ").append(fp.replace("\\", "/"));
+            if (line > 0) {
+                sb.append(":").append(line);
+                int endLine = node.getEndLine() + 1;
+                if (endLine > line) {
+                    sb.append("-").append(endLine)
+                            .append(" (").append(endLine - line + 1).append(" lines)");
+                }
+            }
+        }
+        sb.append("\n");
+        if ("method".equals(kind) || "class".equals(kind)) {
+            String sig = compactOneLine(node.getSignature(), node.getNodeType() + " " + name);
+            if (sig != null && !sig.isBlank()) {
+                sb.append("  ").append(sig).append("\n");
+            }
+            String code = extractCodePreview(projectPath, node, maxLines);
+            if (code != null && !code.isBlank()) {
+                for (String l : code.split("\n")) {
+                    sb.append("  ").append(l).append("\n");
+                }
+            }
+        }
+        if (graph != null && graph.getGraph() != null && graph.getGraph().containsVertex(nodeId)) {
+            List<String> refs = getTopReferencedBy(nodeId, graph, index, 3);
+            if (!refs.isEmpty()) {
+                sb.append("  ← referenced by: ").append(String.join(", ", refs)).append("\n");
+            }
+        }
+        return sb.toString();
+    }
+
+    private static final int ANALYZE_CALL_CHAIN_MAX_DEPTH = 5;
+
+    /**
+     * 调用链：仅沿 invokes 边 BFS，生成 "A -> B -> C" 格式。不含 contains/class->method。
+     */
+    private String buildCallChainsSection(SkeletonCacheService.CachedSkeleton cached, Set<String> nodeIds) {
+        DependencyGraph graph = cached.graph();
+        if (graph == null || graph.getGraph() == null || nodeIds == null || nodeIds.isEmpty()) return "";
+        DefaultDirectedWeightedGraph<String, DefaultWeightedEdge> g = graph.getGraph();
+        Map<String, AstNode> index = graph.getNodeIndex();
+        List<String> lines = new ArrayList<>();
+        int totalEdges = 0;
+        Set<String> seenChains = new HashSet<>();
+        for (String start : nodeIds) {
+            if (!g.containsVertex(start) || totalEdges >= ANALYZE_MAX_CALL_CHAIN_EDGES) break;
+            Deque<String> queue = new ArrayDeque<>();
+            Deque<List<String>> pathQueue = new ArrayDeque<>();
+            queue.add(start);
+            pathQueue.add(new ArrayList<>(List.of(start)));
+            Set<String> visited = new HashSet<>();
+            visited.add(start);
+            while (!queue.isEmpty() && totalEdges < ANALYZE_MAX_CALL_CHAIN_EDGES) {
+                String v = queue.poll();
+                List<String> path = pathQueue.poll();
+                if (path == null || path.size() > ANALYZE_CALL_CHAIN_MAX_DEPTH) continue;
+                for (DefaultWeightedEdge e : g.outgoingEdgesOf(v)) {
+                    String t = g.getEdgeTarget(e);
+                    String et = graph.getEdgeType(v, t);
+                    if (!"invokes".equals(et)) continue;
+                    if (visited.contains(t)) continue;
+                    visited.add(t);
+                    List<String> newPath = new ArrayList<>(path);
+                    newPath.add(t);
+                    queue.add(t);
+                    pathQueue.add(newPath);
+                    String chainKey = String.join("->", newPath);
+                    if (seenChains.add(chainKey)) {
+                        String chainLine = newPath.stream()
+                                .map(id -> prettyNodeLabel(id, index))
+                                .reduce((a, b) -> a + " -> " + b)
+                                .orElse("");
+                        if (!chainLine.isBlank()) {
+                            lines.add(chainLine);
+                            totalEdges++;
+                        }
+                    }
+                }
+            }
+        }
+        if (lines.isEmpty()) {
+            // 回退: 仅输出 invokes 直接边
+            for (String v : nodeIds) {
+                if (!g.containsVertex(v) || totalEdges >= ANALYZE_MAX_CALL_CHAIN_EDGES) break;
+                for (DefaultWeightedEdge e : g.outgoingEdgesOf(v)) {
+                    if (totalEdges >= ANALYZE_MAX_CALL_CHAIN_EDGES) break;
+                    String t = g.getEdgeTarget(e);
+                    String et = graph.getEdgeType(v, t);
+                    if ("invokes".equals(et)) {
+                        lines.add(prettyNodeLabel(v, index) + " -> " + prettyNodeLabel(t, index));
+                        totalEdges++;
+                    }
+                }
+            }
+        }
+        return lines.isEmpty() ? "" : String.join("\n", lines);
+    }
+
+    /**
+     * 从各关键词的代码预览与 grep 命中中交叉推断调用图：若 A 的代码中出现 B( 或 await B，则 A 调用 B。
+     */
+    private Map<String, Set<String>> buildCallGraphFromGrep(String projectPath, Path root, Map<String, AstNode> index,
+                                                             List<SearchCollectResult> resultsPerKeyword, List<String> searchedKeywords) {
+        Map<String, Set<String>> callGraph = new LinkedHashMap<>();
+        if (resultsPerKeyword == null || searchedKeywords == null || resultsPerKeyword.size() != searchedKeywords.size()) return callGraph;
+        for (int i = 0; i < searchedKeywords.size(); i++) {
+            SearchCollectResult col = resultsPerKeyword.get(i);
+            String callerCode = collectFullMethodBodyForInference(projectPath, root, index, col);
+            if (callerCode == null || callerCode.isBlank()) continue;
+            Set<String> callees = new LinkedHashSet<>();
+            for (int j = 0; j < searchedKeywords.size(); j++) {
+                if (i == j) continue;
+                String callee = searchedKeywords.get(j);
+                if (callerCode.contains(callee + "(") || callerCode.contains(callee + " (")
+                        || callerCode.contains("await " + callee + "(") || callerCode.contains("await " + callee + " (")) {
+                    callees.add(callee);
+                }
+            }
+            if (!callees.isEmpty()) callGraph.put(searchedKeywords.get(i), callees);
+        }
+        return callGraph;
+    }
+
+    /**
+     * 生成自足摘要：入口函数及位置 + 调用流前几行，便于 LLM 直接引用。
+     * Entry = 调用其他关键词最多的关键词（出度最高），而非"没被调用的关键词"。
+     * 这样避免 PGGraphStorage（出度=0）被误选为入口，而 aquery_llm（出度=3）才是真正入口。
+     */
+    private String buildSummarySection(Map<String, Set<String>> callGraph, List<String> searchedKeywords,
+                                       List<SearchCollectResult> resultsPerKeyword, Map<String, AstNode> index,
+                                       String chainSection) {
+        Map<String, Integer> outDeg = new LinkedHashMap<>();
+        for (String k : searchedKeywords) outDeg.put(k, 0);
+        if (callGraph != null) {
+            for (Map.Entry<String, Set<String>> e : callGraph.entrySet()) {
+                outDeg.put(e.getKey(), e.getValue().size());
+            }
+        }
+        List<String> callers = searchedKeywords.stream()
+                .filter(k -> outDeg.getOrDefault(k, 0) > 0)
+                .sorted((a, b) -> {
+                    int cmp = Integer.compare(outDeg.getOrDefault(b, 0), outDeg.getOrDefault(a, 0));
+                    if (cmp != 0) return cmp;
+                    return Integer.compare(searchedKeywords.indexOf(a), searchedKeywords.indexOf(b));
+                })
+                .toList();
+        List<String> entries = callers.isEmpty() ? searchedKeywords : callers;
+        if (entries.isEmpty()) return null;
+        StringBuilder sb = new StringBuilder();
+        for (int e = 0; e < Math.min(3, entries.size()); e++) {
+            String kw = entries.get(e);
+            int idx = searchedKeywords.indexOf(kw);
+            if (idx < 0 || idx >= resultsPerKeyword.size()) continue;
+            SearchCollectResult col = resultsPerKeyword.get(idx);
+            if (!col.nodeIds().isEmpty()) {
+                AstNode n = index.get(col.nodeIds().get(0));
+                if (n != null && n.getFilePath() != null) {
+                    String fp = n.getFilePath().replace("\\", "/");
+                    int line = n.getStartLine() + 1;
+                    if (sb.length() > 0) sb.append(" ");
+                    sb.append(kw).append(" (").append(fp).append(":").append(line).append(")");
+                }
+            }
+        }
+        if (sb.length() > 0) sb.insert(0, "Entry: ");
+        if (chainSection != null && !chainSection.isBlank()) {
+            String firstLine = chainSection.contains("\n") ? chainSection.substring(0, chainSection.indexOf('\n')) : chainSection;
+            if (firstLine.length() > 120) firstLine = firstLine.substring(0, 117) + "...";
+            sb.append("\nFlow: ").append(firstLine);
+        }
+        return sb.toString();
+    }
+
+    /**
+     * 按出度降序排列（调用其他关键词最多的在前），而非纯拓扑排序。
+     * 互相调用时（aquery_llm ↔ query_llm）不会死锁，出度高的排前面。
+     */
+    private List<String> topologicalSortKeywords(Map<String, Set<String>> callGraph, List<String> keywords) {
+        if (keywords == null || keywords.isEmpty()) return List.of();
+        Map<String, Integer> outDeg = new HashMap<>();
+        Map<String, Integer> inDeg = new HashMap<>();
+        for (String k : keywords) { outDeg.put(k, 0); inDeg.put(k, 0); }
+        if (callGraph != null) {
+            for (Map.Entry<String, Set<String>> e : callGraph.entrySet()) {
+                outDeg.merge(e.getKey(), e.getValue().size(), Integer::sum);
+                for (String callee : e.getValue()) inDeg.merge(callee, 1, Integer::sum);
+            }
+        }
+        List<String> order = new ArrayList<>(keywords);
+        order.sort((a, b) -> {
+            int netA = outDeg.getOrDefault(a, 0) - inDeg.getOrDefault(a, 0);
+            int netB = outDeg.getOrDefault(b, 0) - inDeg.getOrDefault(b, 0);
+            if (netA != netB) return Integer.compare(netB, netA);
+            int outA = outDeg.getOrDefault(a, 0);
+            int outB = outDeg.getOrDefault(b, 0);
+            if (outA != outB) return Integer.compare(outB, outA);
+            return Integer.compare(keywords.indexOf(a), keywords.indexOf(b));
+        });
+        return order;
+    }
+
+    private String collectCodeTextForResult(SearchCollectResult col, String projectPath, Path root, Map<String, AstNode> index) {
+        StringBuilder sb = new StringBuilder();
+        int nodeLimit = Math.min(col.nodeIds().size(), ANALYZE_TOP_EXPAND_PER_KEYWORD);
+        for (int i = 0; i < nodeLimit; i++) {
+            String preview = renderAnalyzeNodePreview(projectPath, root, col.nodeIds().get(i), index, null, ANALYZE_PREVIEW_LINES);
+            if (preview != null) sb.append(preview);
+        }
+        for (GrepHit h : col.grepHits()) {
+            if (h.snippet() != null) sb.append(h.snippet()).append("\n");
+        }
+        return sb.toString();
+    }
+
+    /**
+     * 专供调用图推断：读取每个 method 节点的完整函数体（startLine 到 endLine），以便检测体内的 callee 调用。
+     */
+    private String collectFullMethodBodyForInference(String projectPath, Path root, Map<String, AstNode> index, SearchCollectResult col) {
+        StringBuilder sb = new StringBuilder();
+        for (String nodeId : col.nodeIds()) {
+            if (!nodeId.startsWith("method:")) continue;
+            AstNode node = index.get(nodeId);
+            if (node == null || node.getFilePath() == null) continue;
+            Path file = root.resolve(node.getFilePath().replace("\\", "/"));
+            if (!Files.isRegularFile(file)) continue;
+            try {
+                List<String> lines = Files.readAllLines(file, StandardCharsets.UTF_8);
+                int start = Math.max(0, node.getStartLine());
+                int end = Math.min(lines.size() - 1, node.getEndLine());
+                for (int i = start; i <= end; i++) {
+                    sb.append(lines.get(i)).append("\n");
+                }
+            } catch (Exception ignored) {
+            }
+        }
+        for (GrepHit h : col.grepHits()) {
+            if (h.snippet() != null) sb.append(h.snippet()).append("\n");
+        }
+        return sb.toString();
+    }
+
+    private String buildChainLinesFromGraph(Map<String, Set<String>> callGraph, List<String> keywords) {
+        if (callGraph.isEmpty()) return "";
+        Set<String> calleeSet = new HashSet<>();
+        for (Set<String> callees : callGraph.values()) calleeSet.addAll(callees);
+        List<String> entries = keywords.stream().filter(k -> !calleeSet.contains(k)).toList();
+        List<String> lines = new ArrayList<>();
+        int maxDepth = 5;
+        int maxLines = 12;
+        for (String entry : entries) {
+            if (lines.size() >= maxLines) break;
+            Deque<List<String>> pathStack = new ArrayDeque<>();
+            pathStack.add(new ArrayList<>(List.of(entry)));
+            while (!pathStack.isEmpty() && lines.size() < maxLines) {
+                List<String> path = pathStack.poll();
+                if (path.size() > maxDepth) continue;
+                String last = path.get(path.size() - 1);
+                Set<String> nexts = callGraph.get(last);
+                if (nexts == null || nexts.isEmpty()) {
+                    if (path.size() >= 2) lines.add(String.join(" -> ", path));
+                    continue;
+                }
+                for (String next : nexts) {
+                    if (path.contains(next)) continue;
+                    List<String> newPath = new ArrayList<>(path);
+                    newPath.add(next);
+                    pathStack.add(newPath);
+                }
+            }
+        }
+        if (lines.isEmpty()) {
+            for (Map.Entry<String, Set<String>> e : callGraph.entrySet()) {
+                for (String t : e.getValue()) lines.add(e.getKey() + " -> " + t);
+                if (lines.size() >= maxLines) break;
+            }
+        }
+        return String.join("\n", lines);
+    }
+
     private String runTrace(SkeletonCacheService.CachedSkeleton cached, String query, String direction, int maxDepth) {
         if (query == null || query.isBlank()) return "✗ trace 模式需要提供 query（类名或方法名）。";
         DependencyGraph graph = cached.graph();
@@ -915,10 +1643,11 @@ public class CodestyleService {
             if ("both".equals(direction) || "downstream".equals(direction)) {
                 for (DefaultWeightedEdge e : g.outgoingEdgesOf(v)) {
                     String t = g.getEdgeTarget(e);
+                    String et = graph.getEdgeType(v, t);
+                    if ("contains".equals(et)) continue;
                     if (visited.add(t)) {
                         depthMap.put(t, d + 1);
                         queue.add(t);
-                        String et = graph.getEdgeType(v, t);
                         if (et == null || et.isBlank()) et = "depends";
                         lines.add("  ".repeat(d + 1) + "→ [" + et + "] " + prettyNodeLabel(t, index));
                     }
@@ -927,10 +1656,11 @@ public class CodestyleService {
             if ("both".equals(direction) || "upstream".equals(direction)) {
                 for (DefaultWeightedEdge e : g.incomingEdgesOf(v)) {
                     String s = g.getEdgeSource(e);
+                    String et = graph.getEdgeType(s, v);
+                    if ("contains".equals(et)) continue;
                     if (visited.add(s)) {
                         depthMap.put(s, d + 1);
                         queue.add(s);
-                        String et = graph.getEdgeType(s, v);
                         if (et == null || et.isBlank()) et = "depends";
                         lines.add("  ".repeat(d + 1) + "← [" + et + "] " + prettyNodeLabel(s, index));
                     }
@@ -1008,7 +1738,7 @@ public class CodestyleService {
         // Step 1: 精确匹配（nodeId / name 精确）— 命中则直接返回
         List<String> strictIds = nameIndex.lookupStrict(qRaw);
         if (!strictIds.isEmpty()) {
-            return renderSearchResult(projectPath, qRaw, "strict", strictIds, index, List.of());
+            return renderSearchResult(projectPath, qRaw, "strict", strictIds, index, List.of(), cached.graph());
         }
 
         List<String> allNodeIds = new ArrayList<>();
@@ -1033,9 +1763,16 @@ public class CodestyleService {
                 if (id == null || n == null) continue;
                 String nm = n.getName();
                 String sig = n.getSignature();
-                if ((nm != null && nm.toLowerCase().contains(qLower)) ||
-                        (sig != null && sig.toLowerCase().contains(qLower)) ||
-                        id.toLowerCase().contains(qLower)) {
+                boolean nameMatch = nm != null && nm.toLowerCase().contains(qLower);
+                boolean sigMatch = sig != null && sig.toLowerCase().contains(qLower);
+                boolean idMatch = id.toLowerCase().contains(qLower);
+                if (!nameMatch && !sigMatch && idMatch && id.startsWith("method:") && id.contains(".")) {
+                    String methodNameInId = id.substring(id.lastIndexOf('.') + 1);
+                    if (!methodNameInId.toLowerCase().contains(qLower)) {
+                        idMatch = false;
+                    }
+                }
+                if (nameMatch || sigMatch || idMatch) {
                     if (!allNodeIds.contains(id)) astIds.add(id);
                     if (astIds.size() + allNodeIds.size() >= 60) break;
                 }
@@ -1066,7 +1803,7 @@ public class CodestyleService {
         }
 
         if (!allNodeIds.isEmpty() || !allGrepHits.isEmpty()) {
-            return renderSearchResult(projectPath, qRaw, bestStage, allNodeIds, index, allGrepHits);
+            return renderSearchResult(projectPath, qRaw, bestStage, allNodeIds, index, allGrepHits, cached.graph());
         }
 
         // Step 5: 轻量模糊匹配候选（token Jaccard）
@@ -1181,6 +1918,123 @@ public class CodestyleService {
         return out;
     }
 
+    private String buildCacheHitSummary(SkeletonCacheService.CachedSkeleton cached, ProjectSkeleton sk, String projectPath) {
+        int files = sk.getTotalFiles();
+        int classes = sk.getTotalClasses();
+        int methods = sk.getTotalMethods();
+        long ageSec = (System.currentTimeMillis() - cached.buildTime()) / 1000;
+        StringBuilder sb = new StringBuilder();
+        sb.append("[cached] 骨架已缓存 (").append(files).append("文件/").append(classes).append("类/").append(methods).append("方法, ")
+          .append(String.format("%.0f", (double) ageSec)).append("秒前构建)\n");
+        sb.append("核心类:\n");
+        Path root = (projectPath != null && !projectPath.isBlank())
+                ? Paths.get(projectPath).toAbsolutePath().normalize() : null;
+        int classCount = 0;
+        final int maxClasses = 8;
+        final int maxMethodsPerClass = 5;
+        List<AstNode> fileNodes = sk.getFileNodes() != null ? sk.getFileNodes() : List.of();
+        for (AstNode fileNode : fileNodes) {
+            if (classCount >= maxClasses) break;
+            if (fileNode.getChildren() == null) continue;
+            String relPath = fileNode.getFilePath();
+            if (relPath == null) relPath = "";
+            for (AstNode child : fileNode.getChildren()) {
+                if (classCount >= maxClasses) break;
+                String nt = child.getNodeType();
+                if (nt == null) continue;
+                String ntLower = nt.toLowerCase();
+                if (!"class".equals(ntLower) && !"interface".equals(ntLower) && !"enum".equals(ntLower)) continue;
+                String className = DependencyGraphBuilder.extractSimpleName(child.getName(), nt);
+                if (className == null || className.isBlank()) className = child.getName();
+                if (className == null) className = "(unnamed)";
+                int line = child.getStartLine() + 1;
+                sb.append("  ").append(className).append(" (").append(relPath.replace("\\", "/")).append(":").append(line).append(") — ");
+                List<String> methodNames = new ArrayList<>();
+                if (child.getChildren() != null) {
+                    for (AstNode m : child.getChildren()) {
+                        if (methodNames.size() >= maxMethodsPerClass) break;
+                        if (m != null && "method".equals(m.getNodeType())) {
+                            String mn = DependencyGraphBuilder.extractSimpleName(m.getName(), "method");
+                            if (mn != null && !mn.isBlank()) methodNames.add(mn);
+                        }
+                    }
+                }
+                sb.append(methodNames.isEmpty() ? "..." : String.join(", ", methodNames)).append("\n");
+                classCount++;
+            }
+        }
+        if (classCount == 0) sb.append("  (无)\n");
+        sb.append("文件: ");
+        List<String> fileEntries = new ArrayList<>();
+        int fileShown = 0;
+        for (AstNode fileNode : fileNodes) {
+            if (fileShown >= 8) break;
+            String relPath = fileNode.getFilePath();
+            if (relPath == null || relPath.isBlank()) continue;
+            String base = relPath.replace("\\", "/");
+            if (base.contains("/")) base = base.substring(base.lastIndexOf('/') + 1);
+            int lineCount = -1;
+            if (root != null) {
+                Path abs = resolveProjectFile(root, relPath);
+                if (abs != null) {
+                    try {
+                        lineCount = Files.readAllLines(abs, StandardCharsets.UTF_8).size();
+                    } catch (Exception ignored) { }
+                }
+            }
+            fileEntries.add(lineCount >= 0 ? base + "(" + lineCount + "行)" : base);
+            fileShown++;
+        }
+        sb.append(fileEntries.isEmpty() ? "(无)" : String.join(", ", fileEntries)).append("\n");
+        DependencyGraph graph = cached.graph();
+        if (graph != null && graph.getEdgeTypeIndex() != null && !graph.getEdgeTypeIndex().isEmpty()) {
+            Map<String, AstNode> index = graph.getNodeIndex();
+            List<String> depLines = new ArrayList<>();
+            for (Map.Entry<String, String> e : graph.getEdgeTypeIndex().entrySet()) {
+                if ("contains".equals(e.getValue())) continue;
+                if (depLines.size() >= 5) break;
+                String key = e.getKey();
+                int pipe = key != null ? key.indexOf('|') : -1;
+                String src = (pipe > 0 && key != null) ? key.substring(0, pipe) : key;
+                String tgt = (pipe >= 0 && key != null && pipe < key.length() - 1) ? key.substring(pipe + 1) : "";
+                String srcLabel = shortVertexLabel(src, index);
+                String tgtLabel = shortVertexLabel(tgt, index);
+                depLines.add(srcLabel + "→" + tgtLabel + "(" + e.getValue() + ")");
+            }
+            if (!depLines.isEmpty()) {
+                sb.append("依赖: ").append(String.join(", ", depLines)).append("\n");
+            }
+        }
+        List<SkeletonCacheService.ExploredEntry> history = skeletonCacheService.getExploreHistory(projectPath);
+        if (!history.isEmpty()) {
+            sb.append("--- 已探索 ---\n");
+            int shown = 0;
+            for (SkeletonCacheService.ExploredEntry entry : history) {
+                long agoSec = (System.currentTimeMillis() - entry.timestamp()) / 1000;
+                sb.append(entry.mode()).append("(\"").append(entry.query()).append("\") → ")
+                  .append(entry.hitCount()).append(" hits (").append(agoSec).append("秒前)\n");
+                if (++shown >= 8) break;
+            }
+        }
+        sb.append("--- 查询示例 ---\n");
+        sb.append("search(\"类名\") | expand(\"文件路径\") | expand(\"类名\") | trace(\"类名\")\n");
+        sb.append("expand 支持 lineRange 参数精确定位，如 lineRange=\"100-200\"。如需重新解析请传 forceRefresh=true");
+        return sb.toString();
+    }
+
+    private static String shortVertexLabel(String vertexId, Map<String, AstNode> index) {
+        if (vertexId == null || vertexId.isBlank()) return vertexId;
+        if (index != null) {
+            AstNode n = index.get(vertexId);
+            if (n != null && n.getName() != null && !n.getName().isBlank())
+                return n.getName();
+        }
+        if (vertexId.startsWith("file:")) return vertexId.length() > 5 ? vertexId.substring(5).replace("\\", "/") : vertexId;
+        if (vertexId.startsWith("class:") && vertexId.contains(":")) return vertexId.substring(vertexId.lastIndexOf(':') + 1);
+        if (vertexId.startsWith("method:") && vertexId.contains(".")) return vertexId.substring(vertexId.lastIndexOf('.') + 1);
+        return vertexId;
+    }
+
     private record GrepHit(String filePath, int line, String snippet) {}
 
     private List<GrepHit> grepCodeContent(Path projectRoot, List<String> fileRelPaths, String query, int maxHits) {
@@ -1217,8 +2071,31 @@ public class CodestyleService {
         return hits;
     }
 
-    private static String renderSearchResult(String projectPath, String query, String stage, List<String> nodeIds,
-                                            Map<String, AstNode> index, List<GrepHit> grepHits) {
+    private static List<String> getTopReferencedBy(String nodeId, DependencyGraph graph,
+            Map<String, AstNode> index, int max) {
+        if (graph == null || graph.getGraph() == null || nodeId == null) return List.of();
+        var g = graph.getGraph();
+        if (!g.containsVertex(nodeId)) return List.of();
+        List<String> refs = new ArrayList<>();
+        for (var e : g.incomingEdgesOf(nodeId)) {
+            String src = g.getEdgeSource(e);
+            String et = graph.getEdgeType(src, nodeId);
+            if ("contains".equals(et)) continue;
+            AstNode n = index != null ? index.get(src) : null;
+            String label = (n != null && n.getName() != null) ? n.getName() : src;
+            String fp = (n != null && n.getFilePath() != null) ? n.getFilePath().replace("\\", "/") : "";
+            int line = (n != null) ? n.getStartLine() + 1 : -1;
+            String ref = label;
+            if (!fp.isEmpty()) ref += " (" + fp + (line > 0 ? ":" + line : "") + ")";
+            refs.add(ref);
+            if (refs.size() >= max) break;
+        }
+        return refs;
+    }
+
+    private String renderSearchResult(String projectPath, String query, String stage, List<String> nodeIds,
+                                            Map<String, AstNode> index, List<GrepHit> grepHits,
+                                            DependencyGraph graph) {
         List<String> uniqueIds = nodeIds != null ? new ArrayList<>(new LinkedHashSet<>(nodeIds)) : List.of();
         int nodeCount = uniqueIds.size();
         int grepCount = grepHits != null ? grepHits.size() : 0;
@@ -1290,6 +2167,13 @@ public class CodestyleService {
                     }
                 }
 
+                if (graph != null && graph.getGraph() != null && graph.getGraph().containsVertex(id)) {
+                    List<String> refs = getTopReferencedBy(id, graph, index, 3);
+                    if (!refs.isEmpty()) {
+                        sb.append("  ← referenced by: ").append(String.join(", ", refs)).append("\n");
+                    }
+                }
+
                 written++;
                 if (written >= 30) break;
             }
@@ -1310,7 +2194,7 @@ public class CodestyleService {
     }
 
     /**
-     * 从源文件读取节点处 3-5 行代码预览（跳过空行和纯注释），用于 search 结果内嵌，减少 expand 调用。
+     * 从源文件读取节点处代码预览。对 method/function 节点跳过签名参数列表，从函数体第一行开始取 maxLines 行，便于看到调用关系。
      */
     private static String extractCodePreview(String projectPath, AstNode node, int maxLines) {
         if (node == null || projectPath == null || projectPath.isBlank()) return null;
@@ -1323,12 +2207,41 @@ public class CodestyleService {
             List<String> lines = Files.readAllLines(file, StandardCharsets.UTF_8);
             int start = Math.max(0, node.getStartLine());
             if (start >= lines.size()) return null;
+            String nodeType = node.getNodeType();
+            boolean isMethodOrFunction = "method".equals(nodeType) || "function".equals(nodeType);
+            if (isMethodOrFunction) {
+                int bodyStart = findMethodBodyStart(lines, start);
+                if (bodyStart > start && bodyStart < lines.size()) {
+                    start = bodyStart;
+                }
+            }
             StringBuilder sb = new StringBuilder();
             int count = 0;
+            boolean inDocstring = false;
+            String docQuote = null;
             for (int i = start; i < lines.size() && count < maxLines; i++) {
                 String line = lines.get(i);
                 String trimmed = line.trim();
                 if (trimmed.isEmpty()) continue;
+
+                // Skip Python docstring (""" or ''')
+                if (!inDocstring) {
+                    if (trimmed.startsWith("\"\"\"") || trimmed.startsWith("'''")) {
+                        docQuote = trimmed.substring(0, 3);
+                        if (trimmed.length() > 3 && trimmed.endsWith(docQuote)) {
+                            continue;
+                        }
+                        inDocstring = true;
+                        continue;
+                    }
+                } else {
+                    if (trimmed.contains(docQuote)) {
+                        inDocstring = false;
+                        docQuote = null;
+                    }
+                    continue;
+                }
+
                 if (trimmed.startsWith("//") || trimmed.startsWith("#") || trimmed.startsWith("*")
                         || trimmed.startsWith("/*") || trimmed.startsWith("*/") || trimmed.startsWith("* ")) continue;
                 sb.append(trimmed);
@@ -1339,6 +2252,23 @@ public class CodestyleService {
         } catch (IOException | SecurityException ignored) {
             return null;
         }
+    }
+
+    /** 从 startLine 起找到函数体开始行（签名结束的下一行）。支持 ):  ){  ) ->  ); 等结尾。 */
+    private static int findMethodBodyStart(List<String> lines, int startLine) {
+        for (int i = startLine; i < lines.size(); i++) {
+            String trimmed = lines.get(i).trim();
+            if (trimmed.isEmpty()) continue;
+            if (trimmed.startsWith("//") || trimmed.startsWith("#")) continue;
+            if (trimmed.endsWith("):") || trimmed.endsWith("){") || trimmed.endsWith(") {")
+                    || trimmed.endsWith(") ->") || trimmed.endsWith(");")) {
+                return i + 1;
+            }
+            if (trimmed.contains("):") || trimmed.contains("){") || trimmed.contains(") ->") || trimmed.contains(");")) {
+                return i + 1;
+            }
+        }
+        return startLine;
     }
 
     private static String compactOneLine(String signature, String fallback) {

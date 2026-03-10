@@ -46,10 +46,13 @@ public final class NameIndex {
             String name = n.getName();
             if (name != null && !name.isBlank()) {
                 index(exact, lower, name, id);
+                String simpleName = DependencyGraphBuilder.extractSimpleName(name, n.getNodeType());
+                if (simpleName != null && !simpleName.isBlank() && !simpleName.equals(name)) {
+                    index(exact, lower, simpleName, id);
+                }
                 if (id.startsWith("method:") && name.contains(".")) {
-                    index(exact, lower, name, id);
-                    String simple = name.substring(name.lastIndexOf('.') + 1);
-                    if (!simple.isBlank()) index(exact, lower, simple, id);
+                    String dotSimple = name.substring(name.lastIndexOf('.') + 1);
+                    if (!dotSimple.isBlank()) index(exact, lower, dotSimple, id);
                 }
             }
 

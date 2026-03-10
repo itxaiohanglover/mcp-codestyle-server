@@ -57,7 +57,7 @@ public class DependencyGraphBuilder {
             for (AstNode child : f.getChildren()) {
                 String nt = child.getNodeType();
                 if ("class".equals(nt) || "interface".equals(nt) || "enum".equals(nt)) {
-                    currentClass = child.getName();
+                    currentClass = extractSimpleName(child.getName(), nt);
                     String classId = "class:" + path + ":" + currentClass;
                     graph.addVertex(classId);
                     nodeIndex.put(classId, child);
@@ -80,8 +80,32 @@ public class DependencyGraphBuilder {
                             }
                         }
                     }
+                    if (child.getChildren() != null) {
+                        for (AstNode member : child.getChildren()) {
+                            if ("method".equals(member.getNodeType())) {
+                                String methodName = extractSimpleName(member.getName(), "method");
+                                if (methodName == null || methodName.isBlank()) continue;
+                                String methodId = "method:" + path + ":" + currentClass + "." + methodName;
+                                graph.addVertex(methodId);
+                                nodeIndex.put(methodId, member);
+                                addEdge(graph, edgeTypeIndex, classId, methodId, "contains", 1.0);
+                                skeleton.getDependencies().add(ProjectSkeleton.DependencyEdge.builder()
+                                        .source(classId).target(methodId).type("contains").weight(1.0).build());
+                                List<String> invRefs = member.getReferences();
+                                if (invRefs == null) invRefs = List.of();
+                                for (String inv : invRefs) {
+                                    String targetId = resolveInvocation(inv, path, currentClass, skeleton, nodeIndex);
+                                    if (targetId != null) {
+                                        addEdge(graph, edgeTypeIndex, methodId, targetId, "invokes", 0.5);
+                                        skeleton.getDependencies().add(ProjectSkeleton.DependencyEdge.builder()
+                                                .source(methodId).target(targetId).type("invokes").weight(0.5).build());
+                                    }
+                                }
+                            }
+                        }
+                    }
                 } else if ("method".equals(nt)) {
-                    String methodName = child.getName();
+                    String methodName = extractSimpleName(child.getName(), "method");
                     String methodId = currentClass != null
                             ? "method:" + path + ":" + currentClass + "." + methodName
                             : "method:" + path + ":" + methodName;
@@ -139,6 +163,39 @@ public class DependencyGraphBuilder {
         } catch (Exception ignored) {}
     }
 
+    /**
+     * 从 AST 节点的 name 字段提取纯标识符名称。
+     * Python AST 解析器返回完整声明如 "class PGGraphStorage(BaseGraphStorage):" 或 "async def edge_degrees_batch("。
+     * 此方法提取 "PGGraphStorage" 或 "edge_degrees_batch"。
+     */
+    static String extractSimpleName(String raw, String nodeType) {
+        if (raw == null || raw.isBlank()) return raw;
+        String t = raw.trim();
+        if ("class".equals(nodeType) || "interface".equals(nodeType) || "enum".equals(nodeType)) {
+            if (t.startsWith("class ")) t = t.substring("class ".length());
+            else if (t.startsWith("interface ")) t = t.substring("interface ".length());
+            else if (t.startsWith("enum ")) t = t.substring("enum ".length());
+            int cut = Integer.MAX_VALUE;
+            for (char c : new char[]{'(', ':', '{', '<', ' '}) {
+                int idx = t.indexOf(c);
+                if (idx >= 0 && idx < cut) cut = idx;
+            }
+            if (cut < Integer.MAX_VALUE) t = t.substring(0, cut);
+            return t.trim();
+        }
+        if ("method".equals(nodeType) || "function".equals(nodeType)) {
+            if (t.startsWith("async ")) t = t.substring("async ".length());
+            if (t.startsWith("def ")) t = t.substring("def ".length());
+            else if (t.startsWith("function ")) t = t.substring("function ".length());
+            int paren = t.indexOf('(');
+            if (paren >= 0) t = t.substring(0, paren);
+            int space = t.indexOf(' ');
+            if (space >= 0) t = t.substring(0, space);
+            return t.trim();
+        }
+        return t;
+    }
+
     private String resolveImportTarget(String importText, Set<String> allFiles, ProjectSkeleton skeleton) {
         if (importText == null || importText.isBlank()) return null;
         String trimmed = importText.trim();
@@ -187,9 +244,12 @@ public class DependencyGraphBuilder {
         for (AstNode f : skeleton.getFileNodes()) {
             if (f.getChildren() == null) continue;
             for (AstNode c : f.getChildren()) {
-                if (("class".equals(c.getNodeType()) || "interface".equals(c.getNodeType()) || "enum".equals(c.getNodeType()))
-                        && simple.equals(c.getName())) {
-                    return "class:" + f.getFilePath() + ":" + c.getName();
+                String nt = c.getNodeType();
+                if ("class".equals(nt) || "interface".equals(nt) || "enum".equals(nt)) {
+                    String cName = extractSimpleName(c.getName(), nt);
+                    if (simple.equals(cName)) {
+                        return "class:" + f.getFilePath() + ":" + cName;
+                    }
                 }
             }
         }

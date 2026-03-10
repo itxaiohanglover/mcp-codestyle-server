@@ -3,7 +3,7 @@
   
   # Codestyle Server MCP【码蜂】
   
-  基于 Spring AI 的 MCP 服务器，为 IDE 和 AI 代理提供代码模板搜索和检索工具。
+  基于 Spring AI 的 MCP 服务器，为 IDE 和 AI 代理提供代码分析与代码模板搜索、检索工具。
   
   [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
   [![Java](https://img.shields.io/badge/Java-17+-orange.svg)](https://www.oracle.com/java/)
@@ -14,7 +14,11 @@
 
 ## 🚀 核心特性
 
-- **MCP 工具**：`codestyleSearch` / `getTemplateByPath` / `uploadTemplate` / `uploadTemplateFromFileSystem` / `deleteTemplate` / `extractProjectSkeleton` / `exploreCodeContext`，支持 Cherry Studio、Cursor、TRAE 等 MCP 客户端
+- **MCP 工具**：支持 Cherry Studio、Cursor、TRAE 等 MCP 客户端
+  - **代码分析**：`analyzeProject`（一站式分析，3～6 个关键词→位置+调用链+预览）、`exploreCodeContext`（expand / trace / search 读代码）
+  - **模板**：`codestyleSearch` / `getTemplateByPath` / `uploadTemplate` / `uploadTemplateFromFileSystem` / `deleteTemplate`
+  - **骨架**：`extractProjectSkeleton`（AST 解析项目骨架）
+- **工具组**：通过 `codestyle.tool-group` 按需暴露工具，**默认 `all`** 暴露全部工具；若仅需代码分析可设为 `analyze`（2 工具），减少客户端 token
 - **Lucene 全文检索**：中文分词（SmartChineseAnalyzer），离线可用
 - **双模式检索**：本地 Lucene（默认） / 远程 Open API（签名认证）
 - **配置验证**：启动时自动验证配置，快速失败
@@ -60,6 +64,8 @@ mvn clean package -DskipTests
   }
 }
 ```
+
+默认 `all` 暴露全部工具；若仅需代码分析（2 工具）可加 `-Dcodestyle.tool-group=analyze`。
 
 **配置示例**：
 
@@ -187,6 +193,20 @@ repository:
 |--------|------|--------|----------|
 | `CODESTYLE_CACHE_PATH` | 本地缓存路径 | `./mcp-cache` | 不同环境使用不同的缓存目录 |
 | `CODESTYLE_REMOTE_ENABLED` | 是否启用远程检索 | `false` | 开发环境关闭，生产环境开启 |
+| `CODESTYLE_TOOL_GROUP` | 暴露的 MCP 工具组 | `all` | 见上表；仅需代码分析时可设为 `analyze` |
+
+**工具组**（`codestyle.tool-group`，可选）：
+
+| 取值 | 暴露工具 | 说明 |
+|------|----------|------|
+| `all`（默认） | 全部 | 所有工具均注册 |
+| `analyze` | `analyzeProject` + `exploreCodeContext` | 仅 2 个代码分析工具，无需先调 extractProjectSkeleton |
+| `fast-analysis` | `analyzeProject` | 仅一站式分析 |
+| `explore` | `exploreCodeContext` | 仅代码展开/追踪/搜索 |
+| `code-analysis` | `extractProjectSkeleton` | 传统骨架解析（需先解析再 explore） |
+| `template` | 模板 7 工具 | codestyleSearch / getTemplateByPath / upload / delete 等 |
+
+可通过 JVM 参数或环境变量覆盖：`-Dcodestyle.tool-group=all` 或 `CODESTYLE_TOOL_GROUP=all`。
 
 **骨架与图相关配置**（`codestyle.*`，可选）：
 
@@ -244,7 +264,44 @@ java -jar codestyle-server.jar --spring.profiles.active=prod
 
 ## 🛠️ MCP 工具
 
-### codestyleSearch
+### 代码分析（analyze 组或 all）
+
+#### analyzeProject
+
+一站式代码分析：传入项目路径与 3～6 个核心函数/类名（逗号分隔），一次返回 Summary、Call Flow、每个关键词的位置（`file:startLine-endLine`）、签名与代码预览；内部自动构建并缓存骨架，**无需先调用 extractProjectSkeleton**。适合 Cursor 等 AI 先全局理解再按需读代码。
+
+```
+输入:
+  - projectPath: 项目目录绝对路径
+  - keywords: 3～6 个核心函数/类名，逗号分隔（如: aquery_llm, kg_query, insert）
+  - focusPath: 可选，聚焦子目录（如 src/main）
+
+输出: Markdown 报告（项目概览、Call Flow、每关键词位置+预览）；增量调用时若关键词已缓存则返回精简摘要，建议用 exploreCodeContext(expand) 读代码
+```
+
+#### exploreCodeContext
+
+基于 analyzeProject 已缓存的骨架与依赖图，按意图精准读取代码。支持 **expand**（按文件/行范围批量读代码，支持 `file1:start-end|file2:start-end`，单次批量 12K 字符按目标数均分）、**trace**（上下游调用链）、**search**（按名称搜索）。
+
+```
+输入:
+  - projectPath: 项目目录绝对路径（analyzeProject 会自动缓存骨架）
+  - mode: expand / trace / search
+  - query: 文件路径、类名、方法名或关键词；expand 支持 | 分隔批量
+  - direction: trace 时 upstream / downstream / both（默认 both）
+  - maxDepth: 最大遍历深度（默认 3）
+  - lineRange: expand 时可选行范围，如 100-200（1 基，含端点）
+
+输出: 展开的代码片段 / 调用链 / 搜索结果
+```
+
+**推荐工作流**：先 `analyzeProject(projectPath, keywords)` → 从报告取 `file:start-end` → `exploreCodeContext(mode=expand, query="file:start-end|...")` 批量读代码；理解调用关系时用 `mode=trace, query="函数名"`。
+
+---
+
+### 模板工具（组 `template` 或 `all`）
+
+#### codestyleSearch
 
 搜索模板，返回目录树 + 描述。
 
@@ -316,9 +373,9 @@ java -jar codestyle-server.jar --spring.profiles.active=prod
   - 索引已更新
 ```
 
-### extractProjectSkeleton
+### extractProjectSkeleton（组 `code-analysis` 或 `all`）
 
-对指定项目目录执行多语言 AST 深度解析，构建层级代码树 (HCT) 与多类型依赖图 (MDG)，通过 PageRank + 复合评分智能剪枝，以 **Markdown+XML** 混合格式返回精简骨架。支持 Java、Python、JavaScript、TypeScript、Go。
+对指定项目目录执行多语言 AST 深度解析，构建层级代码树 (HCT) 与多类型依赖图 (MDG)，以 **Markdown+XML** 混合格式返回精简骨架。支持 Java、Python、JavaScript、TypeScript、Go。在默认组 `all` 下会暴露；若仅需代码分析可设 `codestyle.tool-group=analyze`，则不含本工具。
 
 ```
 输入:
@@ -327,21 +384,6 @@ java -jar codestyle-server.jar --spring.profiles.active=prod
   - focusPath: 可选，聚焦子目录（如 src/main），仅解析该目录
 
 输出: Markdown + <directory_tree> / <ast_skeleton> / <dependency_graph> 混合文档
-```
-
-### exploreCodeContext
-
-基于已解析的骨架与依赖图，按意图检索精准代码上下文。**需先对同一 projectPath 调用 extractProjectSkeleton**。
-
-```
-输入:
-  - projectPath: 项目目录绝对路径
-  - mode: expand（展开实现）/ trace（上下游调用链）/ search（按名称搜索）
-  - query: 文件路径、类名、方法名或关键词
-  - direction: trace 时 upstream / downstream / both
-  - maxDepth: 最大遍历深度（默认 3）
-
-输出: <expanded_context> / <trace_result> / <search_result> 等
 ```
 
 ### deleteTemplate
@@ -433,7 +475,25 @@ A: 系统会自动降级到本地 Lucene 检索
 | 重建索引 | 删除 `lucene-index/` 目录，重启服务 |
 | 强制更新模板 | 删除对应的 `{groupId}/{artifactId}` 目录 |
 
+### CI / 校验
+
+- **工具组**：PR 或集成测试时默认 `all` 全量验证；若仅测代码分析可加 `-Dcodestyle.tool-group=analyze`
+- **Skill**：`skill/codestyle/` 下提供 SKILL.md 与 references，可用于代码审查与 Skill 可用性校验（参见 [Issue #26](https://github.com/itxaiohanglover/mcp-codestyle-server/issues/26)）
+
 ## 📝 更新日志
+
+### v2.2.0 (2026-03)
+
+**代码分析增强**：
+- ✅ **analyzeProject**：新增一站式代码分析工具，传入 3～6 个关键词即可获得位置、调用链与预览，无需先调 extractProjectSkeleton
+- ✅ **工具组**：默认 `codestyle.tool-group=all` 暴露全部工具；可选 `analyze` 仅暴露 analyzeProject + exploreCodeContext，减少 tools/list 体积与 token
+- ✅ **增量分析**：关键词已全部命中缓存时返回单行摘要，提示用 exploreCodeContext 读代码
+- ✅ **批量 expand**：exploreCodeContext(expand) 单次 12K 字符预算按目标数均分，避免后段目标被截断
+- ✅ **描述精简**：analyzeProject / exploreCodeContext 的 tool description 压缩，降低客户端 token
+
+**配置与文档**：
+- 支持 `CODESTYLE_TOOL_GROUP` 环境变量与 `codestyle.tool-group` 配置
+- README 补充工具组说明与推荐工作流；Skill 文档见 [skill/codestyle](skill/codestyle/)
 
 ### v2.0.0 (2026-02-24)
 

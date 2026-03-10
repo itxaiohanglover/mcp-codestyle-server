@@ -39,7 +39,9 @@ sandbox:
     fallback-local: ${CODESTYLE_SANDBOX_DOCKER_FALLBACK_LOCAL:true}
 
 # 项目骨架解析与图构建（AstParsingService, DependencyGraphBuilder）
-# P4: tool-group=all 默认注册全部；code-analysis 仅 2 个代码分析工具；template 仅模板工具
+# 工具组: all（默认）= 全部工具; analyze = analyzeProject + exploreCodeContext（2工具）
+#   fast-analysis = 仅 analyzeProject; explore = 仅 exploreCodeContext
+#   code-analysis = 仅 extractProjectSkeleton; template = 模板7工具
 codestyle:
   tool-group: ${CODESTYLE_TOOL_GROUP:all}
   skeleton:

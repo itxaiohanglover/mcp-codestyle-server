@@ -8,10 +8,15 @@ import org.springframework.core.env.Environment;
 import java.util.Map;
 
 /**
- * P4: 根据 codestyle.tool-group 决定是否注册某组 MCP 工具。
- * code-analysis → 仅注册 CodeAnalysisService（2 工具）
- * template → 仅注册 TemplateToolService（7 工具）
- * all → 两者都注册
+ * 根据 codestyle.tool-group 决定是否注册某组 MCP 工具。
+ *
+ * 工具组说明：
+ *   all（默认）→ 全部工具；analyze → fast-analysis（analyzeProject）+ explore（exploreCodeContext），共 2 个工具
+ *   fast-analysis   → 仅 ProjectAnalysisService（1 工具 analyzeProject）
+ *   explore         → 仅 ExploreCodeService（1 工具 exploreCodeContext）
+ *   code-analysis   → 仅 CodeAnalysisService（1 工具 extractProjectSkeleton）
+ *   template        → 仅 TemplateToolService（7 工具）
+ *   all             → 全部注册
  */
 public class CodestyleToolGroupCondition implements Condition {
 
@@ -31,6 +36,11 @@ public class CodestyleToolGroupCondition implements Condition {
         if (value == null || value.isBlank()) return false;
 
         if ("all".equalsIgnoreCase(group)) return true;
+        if ("analyze".equalsIgnoreCase(group)) {
+            // 默认组：analyzeProject + exploreCodeContext，不含 extractProjectSkeleton
+            return "fast-analysis".equalsIgnoreCase(value)
+                    || "explore".equalsIgnoreCase(value);
+        }
         return value.equalsIgnoreCase(group);
     }
 }

@@ -7,6 +7,11 @@ import top.codestyle.mcp.model.ast.DependencyGraph;
 import top.codestyle.mcp.model.ast.ProjectSkeleton;
 
 import java.nio.file.Paths;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Collection;
+import java.util.List;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -28,7 +33,12 @@ public class SkeletonCacheService {
 
     public record CachedSkeleton(ProjectSkeleton skeleton, DependencyGraph graph, NameIndex nameIndex, long buildTime) {}
 
+    public record ExploredEntry(String mode, String query, int hitCount, long timestamp) {}
+
     private record CacheEntry(CachedSkeleton data, long expireAt) {}
+
+    private final ConcurrentHashMap<String, List<ExploredEntry>> explorationHistory = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, Set<String>> analyzedKeywordsMap = new ConcurrentHashMap<>();
 
     private static String normalizeKey(String projectPath) {
         if (projectPath == null || projectPath.isBlank()) return "";
@@ -66,10 +76,45 @@ public class SkeletonCacheService {
     }
 
     public void invalidate(String projectPath) {
-        cache.remove(normalizeKey(projectPath));
+        String key = normalizeKey(projectPath);
+        cache.remove(key);
+        explorationHistory.remove(key);
+        analyzedKeywordsMap.remove(key);
     }
 
     public void invalidateAll() {
         cache.clear();
+        explorationHistory.clear();
+        analyzedKeywordsMap.clear();
+    }
+
+    public void recordExplore(String projectPath, String mode, String query, int hitCount) {
+        String key = normalizeKey(projectPath);
+        if (key.isEmpty()) return;
+        explorationHistory.computeIfAbsent(key, k -> Collections.synchronizedList(new ArrayList<>()))
+                .add(new ExploredEntry(mode != null ? mode : "", query != null ? query : "", hitCount, System.currentTimeMillis()));
+    }
+
+    public List<ExploredEntry> getExploreHistory(String projectPath) {
+        String key = normalizeKey(projectPath);
+        List<ExploredEntry> list = explorationHistory.get(key);
+        return list != null ? List.copyOf(list) : List.of();
+    }
+
+    public void recordAnalyzedKeywords(String projectPath, Collection<String> keywords) {
+        String key = normalizeKey(projectPath);
+        if (key.isEmpty() || keywords == null || keywords.isEmpty()) return;
+        Set<String> set = analyzedKeywordsMap.computeIfAbsent(key, k -> ConcurrentHashMap.newKeySet());
+        for (String kw : keywords) {
+            if (kw == null) continue;
+            String s = kw.strip();
+            if (!s.isEmpty()) set.add(s);
+        }
+    }
+
+    public Set<String> getAnalyzedKeywords(String projectPath) {
+        String key = normalizeKey(projectPath);
+        Set<String> set = analyzedKeywordsMap.get(key);
+        return set != null ? Set.copyOf(set) : Set.of();
     }
 }
